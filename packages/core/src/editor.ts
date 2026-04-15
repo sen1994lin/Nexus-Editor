@@ -47,6 +47,7 @@ export function createEditor(config: EditorConfig): EditorAPI {
   let destroyed = false;
   let focused = false;
   let parseTimer: ReturnType<typeof setTimeout> | undefined;
+  let currentAst = parseDocument(parser, config.initialValue ?? "");
   let api!: EditorAPI;
 
   function setFocused(next: boolean) {
@@ -69,7 +70,8 @@ export function createEditor(config: EditorConfig): EditorAPI {
       return;
     }
 
-    config.onChange?.(markdown, parseDocument(parser, markdown));
+    currentAst = parseDocument(parser, markdown);
+    config.onChange?.(markdown, currentAst);
   }
 
   function scheduleChange(markdown: string) {
@@ -130,6 +132,9 @@ export function createEditor(config: EditorConfig): EditorAPI {
   api = {
     getDocument() {
       return view.state.doc.toString();
+    },
+    getAst() {
+      return currentAst;
     },
     setDocument(next) {
       if (destroyed) {

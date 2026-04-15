@@ -19,6 +19,7 @@ export interface EditorConfig {
 
 export interface EditorAPI {
   getDocument(): string;
+  getAst(): Root;
   setDocument(next: string): void;
   focus(): void;
   blur(): void;

@@ -14,6 +14,7 @@ describe("createEditor", () => {
     const editor = createEditor({ container, initialValue: "# Hello" });
 
     expect(editor.getDocument()).toBe("# Hello");
+    expect(editor.getAst().children[0]?.type).toBe("heading");
     editor.destroy();
   });
 
@@ -70,6 +71,7 @@ describe("createEditor", () => {
     editor.setDocument("# Heading");
 
     expect(nodeTypes).toEqual(["root", "heading"]);
+    expect(editor.getAst().children[0]?.type).toBe("heading");
     editor.destroy();
   });
 
