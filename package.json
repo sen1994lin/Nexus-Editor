@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "build": "pnpm --filter @nexus/core build && pnpm --filter @nexus/react build",
+    "build": "pnpm --filter @nexus/core build && pnpm --filter @nexus/react build && pnpm --filter @nexus/vue build",
     "test": "vitest run"
   },
   "devDependencies": {
@@ -13,11 +13,13 @@
     "@types/node": "^24.6.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
+    "@vue/test-utils": "^2.4.6",
     "jsdom": "^25.0.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tsup": "^8.5.0",
     "typescript": "^5.9.3",
+    "vue": "^3.5.22",
     "vitest": "^2.1.9"
   }
 }
