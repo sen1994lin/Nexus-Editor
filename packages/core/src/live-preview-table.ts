@@ -128,6 +128,7 @@ export class EditableTableWidget extends WidgetType {
     let rangeEnd: { row: number; col: number } | null = null;
     let isRangeSelecting = false;
     let cellMouseDown = false; // true between mousedown and mouseup on a cell
+    let rangeActive = false;   // true when a multi-cell range is displayed (survives mouseup)
 
     // Custom drag state (no HTML5 drag API)
     let draggingCol = -1;   // which column is being dragged
@@ -161,8 +162,8 @@ export class EditableTableWidget extends WidgetType {
         const tableEnd = self.tableFrom + self.source.length;
         const isSelected = sel.from !== sel.to && sel.from <= self.tableFrom && sel.to >= tableEnd;
         selectionOverlay.style.display = isSelected ? "block" : "none";
-        // If cursor moved outside table, no active mouse interaction, and not mid-select, clear range
-        if (rangeStart && !isRangeSelecting && !cellMouseDown && (sel.head < self.tableFrom || sel.head > tableEnd)) {
+        // If cursor moved outside table, no active interaction, no active range, clear range selection
+        if (rangeStart && !isRangeSelecting && !cellMouseDown && !rangeActive && (sel.head < self.tableFrom || sel.head > tableEnd)) {
           clearRangeSelection();
         }
       } else {
@@ -337,8 +338,8 @@ export class EditableTableWidget extends WidgetType {
       rangeStart = null;
       rangeEnd = null;
       isRangeSelecting = false;
+      rangeActive = false;
       rangeBorder.style.display = "none";
-      // Reset cell backgrounds
       table.querySelectorAll(".nexus-cell").forEach((el) => {
         const h = el as HTMLElement;
         h.style.background = h.tagName === "TH" ? "#fafafa" : "";
@@ -658,6 +659,7 @@ export class EditableTableWidget extends WidgetType {
               requestAnimationFrame(() => td.focus({ preventScroll: true }));
             } else {
               // Multi-cell range selected — keep range visible, focus wrapper for key events
+              rangeActive = true;
               wrapper.focus({ preventScroll: true });
             }
           };
