@@ -11,7 +11,8 @@ export default defineConfig({
       "@nexus/plugin-slash": path.resolve(__dirname, "packages/plugin-slash/src/index.ts"),
       "@nexus/plugin-history": path.resolve(__dirname, "packages/plugin-history/src/index.ts"),
       "@nexus/plugin-search": path.resolve(__dirname, "packages/plugin-search/src/index.ts"),
-      "@nexus/plugin-toolbar": path.resolve(__dirname, "packages/plugin-toolbar/src/index.ts")
+      "@nexus/plugin-toolbar": path.resolve(__dirname, "packages/plugin-toolbar/src/index.ts"),
+      "@nexus/plugin-math": path.resolve(__dirname, "packages/plugin-math/src/index.ts")
     }
   },
   test: {

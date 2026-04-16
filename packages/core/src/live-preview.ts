@@ -181,7 +181,8 @@ const CHECKBOX_RE = /^\[([ xX])\] /;
 function buildListDecorations(
   range: { from: number; to: number; node: List },
   doc: string,
-  decos: Range<Decoration>[]
+  decos: Range<Decoration>[],
+  viewRef: { current: EditorView | null }
 ): void {
   const source = doc.slice(range.from, range.to);
   const lines = source.split("\n");
@@ -195,11 +196,9 @@ function buildListDecorations(
 
     if (markerMatch) {
       const indent = markerMatch[1];
-      const marker = markerMatch[2];
       const markerStart = offset + indent.length;
       const markerEnd = offset + markerMatch[0].length;
 
-      // Replace the marker (- or 1.) with a styled bullet/number
       const bullet = document.createElement("span");
       if (isOrdered) {
         bullet.textContent = `${orderNum}. `;
@@ -213,7 +212,6 @@ function buildListDecorations(
         Decoration.replace({ widget: createWidget(bullet) }).range(markerStart, markerEnd)
       );
 
-      // Check for task list checkbox after the marker
       const afterMarker = line.slice(markerMatch[0].length);
       const checkMatch = CHECKBOX_RE.exec(afterMarker);
       if (checkMatch) {
@@ -224,15 +222,26 @@ function buildListDecorations(
         const checkbox = document.createElement("input");
         checkbox.type = "checkbox";
         checkbox.checked = isChecked;
-        checkbox.disabled = true;
         checkbox.style.marginRight = "4px";
         checkbox.style.verticalAlign = "middle";
+        checkbox.style.cursor = "pointer";
+
+        // Clicking toggles [ ] ↔ [x] in the document
+        const toggleFrom = checkStart + 1; // position of ' ' or 'x' inside [_]
+        checkbox.addEventListener("click", (e) => {
+          e.preventDefault();
+          const v = viewRef.current;
+          if (!v) return;
+          const newChar = isChecked ? " " : "x";
+          v.dispatch({
+            changes: { from: toggleFrom, to: toggleFrom + 1, insert: newChar }
+          });
+        });
 
         decos.push(
           Decoration.replace({ widget: createWidget(checkbox) }).range(checkStart, checkEnd)
         );
 
-        // Strikethrough completed items
         if (isChecked && checkEnd < lineEnd) {
           decos.push(
             Decoration.mark({
@@ -315,7 +324,8 @@ function buildDecorations(
   doc: string,
   selection: readonly SelectionRange[],
   parser: ParserLike,
-  config: NormalizedLivePreviewConfig
+  config: NormalizedLivePreviewConfig,
+  viewRef: { current: EditorView | null }
 ): DecorationSet {
   if (!config.enabled) {
     return Decoration.none;
@@ -354,7 +364,8 @@ function buildDecorations(
       buildListDecorations(
         range as { from: number; to: number; node: List },
         doc,
-        decos
+        decos,
+        viewRef
       );
     } else if (range.node.type === "image") {
       const cursorOnImage = selectionIntersects(range.from, range.to, selection);
@@ -419,13 +430,16 @@ export function createLivePreviewExtension(
     return [];
   }
 
+  const viewRef: { current: EditorView | null } = { current: null };
+
   const field = StateField.define<DecorationSet>({
     create(state) {
       return buildDecorations(
         state.doc.toString(),
         state.selection.ranges,
         parser,
-        normalized
+        normalized,
+        viewRef
       );
     },
     update(decos: DecorationSet, tr: Transaction) {
@@ -434,7 +448,8 @@ export function createLivePreviewExtension(
           tr.state.doc.toString(),
           tr.state.selection.ranges,
           parser,
-          normalized
+          normalized,
+          viewRef
         );
       }
       return decos;
@@ -444,5 +459,10 @@ export function createLivePreviewExtension(
     }
   });
 
-  return [field];
+  // ViewPlugin to capture the EditorView reference for checkbox interactions
+  const viewCapture = EditorView.updateListener.of((update) => {
+    viewRef.current = update.view;
+  });
+
+  return [field, viewCapture];
 }

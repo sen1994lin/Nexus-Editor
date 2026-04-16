@@ -1,3 +1,5 @@
+import hljs from "highlight.js";
+
 import type {
   LivePreviewNode,
   LivePreviewNodeType,
@@ -93,11 +95,23 @@ export function createDefaultRenderer(context: LivePreviewRenderContext): HTMLEl
     case "code": {
       const pre = document.createElement("pre");
       const code = document.createElement("code");
-      code.textContent = context.node.value;
-      if (context.node.lang) {
-        code.setAttribute("data-language", context.node.lang);
-        code.className = `language-${context.node.lang}`;
+      const lang = context.node.lang;
+
+      if (lang && hljs.getLanguage(lang)) {
+        code.innerHTML = hljs.highlight(context.node.value, { language: lang }).value;
+      } else if (lang) {
+        code.innerHTML = hljs.highlightAuto(context.node.value).value;
+      } else {
+        code.textContent = context.node.value;
       }
+
+      if (lang) {
+        code.setAttribute("data-language", lang);
+        code.className = `hljs language-${lang}`;
+      } else {
+        code.className = "hljs";
+      }
+
       pre.style.display = "block";
       pre.style.padding = "8px 12px";
       pre.style.background = "#f6f8fa";
