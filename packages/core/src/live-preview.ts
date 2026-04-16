@@ -204,7 +204,17 @@ function buildDecorations(
         decos
       );
     } else if (range.node.type === "table" && !config.renderers.table) {
-      buildTableDecorations(range, doc, decos);
+      const cursorOnTable = selectionIntersects(range.from, range.to, selection);
+      if (cursorOnTable) {
+        buildTableDecorations(range, doc, decos);
+      } else {
+        decos.push(
+          Decoration.replace({
+            widget: createWidget(renderLivePreviewNode(range.node, range.source, config.renderers)),
+            block: true
+          }).range(range.from, range.to)
+        );
+      }
     } else if (range.node.type === "image") {
       const cursorOnImage = selectionIntersects(range.from, range.to, selection);
 
