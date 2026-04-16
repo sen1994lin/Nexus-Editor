@@ -206,35 +206,80 @@ function buildCodeBlockDecorations(
   const source = range.source;
   const lines = source.split("\n");
   const cursorOnCode = selectionIntersects(range.from, range.to, selection);
-  let lineOffset = range.from;
+  const firstNewline = source.indexOf("\n");
+  const lastNewline = source.lastIndexOf("\n");
 
-  for (let li = 0; li < lines.length; li++) {
-    const lineStart = lineOffset;
-    const lineEnd = lineOffset + lines[li].length;
-    const isFirstLine = li === 0;
-    const isLastLine = li === lines.length - 1;
+  if (cursorOnCode) {
+    // ── Editing mode: fences visible, syntax highlighted ──
+    let lineOffset = range.from;
+    for (let li = 0; li < lines.length; li++) {
+      const lineStart = lineOffset;
+      const isFirstLine = li === 0;
+      const isLastLine = li === lines.length - 1;
 
-    // Line decoration: background on every line
-    decos.push(Decoration.line({
-      attributes: {
-        style: "background:#f6f8fa;font-family:monospace;font-size:0.9em;"
-          + (isFirstLine ? "border-radius:4px 4px 0 0;padding-top:4px;" : "")
-          + (isLastLine ? "border-radius:0 0 4px 4px;padding-bottom:4px;" : "")
-      }
-    }).range(lineStart));
+      decos.push(Decoration.line({
+        attributes: {
+          style: "background:#f6f8fa;font-family:monospace;font-size:0.9em;"
+            + (isFirstLine ? "border-radius:4px 4px 0 0;" : "")
+            + (isLastLine ? "border-radius:0 0 4px 4px;" : "")
+        }
+      }).range(lineStart));
 
-    // Dim fences (first and last line)
-    if (isFirstLine || isLastLine) {
-      if (lineEnd > lineStart) {
-        decos.push(Decoration.mark({ attributes: { style: "color:#aaa" } }).range(lineStart, lineEnd));
-      }
+      lineOffset += lines[li].length + 1;
+    }
+  } else {
+    // ── View mode: fences hidden, language label top-right ──
+    // Hide opening fence line: replace ```lang\n (including newline)
+    if (firstNewline >= 0) {
+      decos.push(Decoration.replace({}).range(range.from, range.from + firstNewline + 1));
+    }
+    // Hide closing fence line: replace \n``` (including preceding newline)
+    if (lastNewline > firstNewline) {
+      decos.push(Decoration.replace({}).range(range.from + lastNewline, range.to));
     }
 
-    lineOffset = lineEnd + 1;
+    // Line decorations on content lines only
+    let lineOffset = range.from;
+    for (let li = 0; li < lines.length; li++) {
+      const lineStart = lineOffset;
+      const isFirstLine = li === 0;
+      const isLastLine = li === lines.length - 1;
+
+      if (!isFirstLine && !isLastLine) {
+        // First content line gets top radius, last content line gets bottom radius
+        const isFirstContent = li === 1;
+        const isLastContent = li === lines.length - 2;
+        decos.push(Decoration.line({
+          attributes: {
+            style: "background:#f6f8fa;font-family:monospace;font-size:0.9em;position:relative;"
+              + (isFirstContent ? "border-radius:4px 4px 0 0;padding-top:6px;" : "")
+              + (isLastContent ? "border-radius:0 0 4px 4px;padding-bottom:6px;" : "")
+          }
+        }).range(lineStart));
+      }
+
+      lineOffset += lines[li].length + 1;
+    }
+
+    // Language label (right-aligned on first content line)
+    if (range.node.lang && firstNewline >= 0) {
+      const firstContentLineStart = range.from + firstNewline + 1;
+      const labelEl = document.createElement("span");
+      labelEl.textContent = range.node.lang.charAt(0).toUpperCase() + range.node.lang.slice(1);
+      labelEl.style.cssText =
+        "position:absolute;right:8px;top:6px;font-size:11px;color:#999;font-family:sans-serif;user-select:none;";
+      decos.push(Decoration.widget({
+        widget: new (class extends WidgetType {
+          toDOM() { return labelEl; }
+          ignoreEvent() { return true; }
+        })(),
+        side: -1
+      }).range(firstContentLineStart));
+    }
   }
 
-  // Syntax highlighting via hljs tokens (only when cursor is outside)
-  if (!cursorOnCode && range.node.value) {
+  // Syntax highlighting — always applied
+  if (range.node.value && firstNewline >= 0) {
     const lang = range.node.lang;
     let result: hljs.HighlightResult | null = null;
     try {
@@ -246,40 +291,8 @@ function buildCodeBlockDecorations(
     } catch { /* ignore hljs errors */ }
 
     if (result) {
-      // Content starts after the first line (fence) + newline
-      const firstNewline = source.indexOf("\n");
-      if (firstNewline >= 0) {
-        const contentStart = range.from + firstNewline + 1;
-        // Walk the hljs emitter tree to extract token positions
-        applyHljsTokens(result._emitter as any, contentStart, decos);
-      }
-    }
-  }
-
-  // Language label when cursor is outside (as widget after opening fence)
-  if (!cursorOnCode && range.node.lang) {
-    const firstNewline = source.indexOf("\n");
-    if (firstNewline > 0) {
-      const labelEl = document.createElement("span");
-      labelEl.textContent = range.node.lang;
-      labelEl.style.cssText = "float:right;font-size:11px;color:#888;font-family:sans-serif;user-select:none;";
-      decos.push(Decoration.widget({
-        widget: new (class extends WidgetType {
-          toDOM() { return labelEl; }
-          ignoreEvent() { return true; }
-        })(),
-        side: 1
-      }).range(range.from + firstNewline));
-    }
-
-    // Hide fence text when cursor is outside
-    const firstNl = source.indexOf("\n");
-    const lastNl = source.lastIndexOf("\n");
-    if (firstNl > 0) {
-      decos.push(Decoration.mark({ attributes: { style: "font-size:0;color:transparent;overflow:hidden;max-height:0;display:inline-block;width:0;" } }).range(range.from, range.from + firstNl));
-    }
-    if (lastNl > firstNl) {
-      decos.push(Decoration.mark({ attributes: { style: "font-size:0;color:transparent;overflow:hidden;max-height:0;display:inline-block;width:0;" } }).range(range.from + lastNl + 1, range.to));
+      const contentStart = range.from + firstNewline + 1;
+      applyHljsTokens(result._emitter as any, contentStart, decos);
     }
   }
 }
@@ -309,6 +322,45 @@ function applyHljsTokens(emitter: any, offset: number, decos: Range<Decoration>[
   let pos = 0;
   for (const child of emitter.rootNode.children) {
     pos = walk(child, pos);
+  }
+}
+
+interface InlineMarkerStyle {
+  openLen: number;
+  closeLen: number;
+  style: string;
+  attrs?: Record<string, string>;
+}
+
+function getInlineMarkerStyle(nodeType: string, source: string): InlineMarkerStyle | null {
+  switch (nodeType) {
+    case "strong":
+      return { openLen: 2, closeLen: 2, style: "font-weight:bold" };
+    case "emphasis":
+      return { openLen: 1, closeLen: 1, style: "font-style:italic" };
+    case "delete":
+      return { openLen: 2, closeLen: 2, style: "text-decoration:line-through" };
+    case "inlineCode": {
+      // Detect ` vs `` markers
+      let ticks = 0;
+      for (let i = 0; i < source.length && source[i] === "`"; i++) ticks++;
+      return {
+        openLen: ticks, closeLen: ticks,
+        style: "font-family:monospace;font-size:0.9em;background:#f0f0f0;padding:1px 4px;border-radius:3px"
+      };
+    }
+    case "link": {
+      // [text](url) — hide [ and ](url)
+      const bracketClose = source.indexOf("](");
+      if (bracketClose < 0) return null;
+      return {
+        openLen: 1,                          // hide [
+        closeLen: source.length - bracketClose - 1, // hide ](url)
+        style: "color:#0969da;text-decoration:underline;cursor:pointer"
+      };
+    }
+    default:
+      return null;
   }
 }
 
@@ -368,13 +420,34 @@ function buildDecorations(
       if (range.node.type === "heading" || range.node.type === "table" || range.node.type === "list") {
         parentSpans.push([range.from, range.to]);
       }
-      const isBlock = BLOCK_NODE_TYPES.has(range.node.type);
-      decos.push(
-        Decoration.replace({
-          widget: createWidget(renderLivePreviewNode(range.node, range.source, config.renderers), isBlock),
-          block: isBlock
-        }).range(range.from, range.to)
-      );
+
+      // Inline formatting: hide markers, apply style as mark (keeps text as real CM6 content)
+      const inlineStyle = getInlineMarkerStyle(range.node.type, range.source);
+      if (inlineStyle && !config.renderers[range.node.type]) {
+        const { openLen, closeLen, style, attrs } = inlineStyle;
+        // Hide opening marker
+        if (openLen > 0) {
+          decos.push(Decoration.replace({}).range(range.from, range.from + openLen));
+        }
+        // Hide closing marker
+        if (closeLen > 0) {
+          decos.push(Decoration.replace({}).range(range.to - closeLen, range.to));
+        }
+        // Apply style to visible text
+        const textFrom = range.from + openLen;
+        const textTo = range.to - closeLen;
+        if (textTo > textFrom) {
+          decos.push(Decoration.mark({ attributes: { style, ...attrs } }).range(textFrom, textTo));
+        }
+      } else {
+        const isBlock = BLOCK_NODE_TYPES.has(range.node.type);
+        decos.push(
+          Decoration.replace({
+            widget: createWidget(renderLivePreviewNode(range.node, range.source, config.renderers), isBlock),
+            block: isBlock
+          }).range(range.from, range.to)
+        );
+      }
     }
   }
 

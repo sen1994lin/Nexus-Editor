@@ -25,7 +25,9 @@ describe("live preview regressions", () => {
       })
     );
 
-    expect(container.querySelector("strong")?.textContent).toBe("bold");
+    const text = container.textContent ?? "";
+    expect(text).toContain("bold");
+    expect(text).not.toContain("**");
     editor.destroy();
   });
 
@@ -38,11 +40,15 @@ describe("live preview regressions", () => {
     });
 
     editor.setSelection(8);
-    expect(container.querySelector("strong")).toBeNull();
+    // Cursor inside bold: raw markdown visible
+    expect(container.textContent).toContain("**bold**");
 
     editor.setSelection(0);
 
-    expect(container.querySelector("strong")?.textContent).toBe("bold");
+    // Cursor left: markers hidden, text visible
+    const text = container.textContent ?? "";
+    expect(text).toContain("bold");
+    expect(text).not.toContain("**");
     editor.destroy();
   });
 });
