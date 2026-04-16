@@ -23,6 +23,12 @@ function extractCellText(cell: any): string {
     .join("");
 }
 
+const GRIP_BG = "#e8e8e8";
+const GRIP_BG_HOVER = "#d0d0d0";
+const SELECT_BG = "rgba(124, 108, 250, 0.12)";
+const SELECT_BORDER = "#7c6cfa";
+const DRAG_HIGHLIGHT_BG = "rgba(124, 108, 250, 0.08)";
+
 export class EditableTableWidget extends WidgetType {
   private editing = false;
 
@@ -51,7 +57,7 @@ export class EditableTableWidget extends WidgetType {
     const lines = this.source.split("\n");
     const newLines = lines.map((line) => {
       const cells = line.split("|").filter((_, i, a) => i > 0 && i < a.length - 1);
-      if (cells.length <= 1) return line;
+      if (cells.length === 0) return line;
       cells.splice(colIdx, 1);
       return "|" + cells.join("|") + "|";
     });
@@ -63,7 +69,7 @@ export class EditableTableWidget extends WidgetType {
     const dataLines: number[] = [];
     for (let i = 0; i < lines.length; i++) if (!SEPARATOR_RE.test(lines[i])) dataLines.push(i);
     const lineIdx = dataLines[rowIdx];
-    if (lineIdx === undefined || dataLines.length <= 1) return;
+    if (lineIdx === undefined) return;
     lines.splice(lineIdx, 1);
     this.dispatch(lines.join("\n"));
   }
@@ -113,31 +119,343 @@ export class EditableTableWidget extends WidgetType {
     const dataLineIndices: number[] = [];
     for (let i = 0; i < sourceLines.length; i++) if (!SEPARATOR_RE.test(sourceLines[i])) dataLineIndices.push(i);
 
-    // Outer wrapper with rounded border (Obsidian style)
+    // State
+    let selectedCol = -1;
+    let selectedRow = -1;
+
+    // Custom drag state (no HTML5 drag API)
+    let draggingCol = -1;   // which column is being dragged
+    let draggingRow = -1;   // which row is being dragged
+    let dropTargetCol = -1;
+    let dropTargetRow = -1;
+
+    // ── Root wrapper ──
     const wrapper = document.createElement("div");
-    wrapper.style.cssText = "display:inline-block;position:relative;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;margin:4px 0;";
+    wrapper.className = "nexus-table-wrapper";
+    wrapper.style.cssText = "display:inline-block;position:relative;margin:8px 0;user-select:none;";
 
-    // Top drag handle (centered, moves entire table block)
-    const handle = document.createElement("div");
-    handle.style.cssText =
-      "display:flex;justify-content:center;padding:4px 0;cursor:grab;user-select:none;" +
-      "opacity:0;transition:opacity .15s;background:#f8f8f8;border-bottom:1px solid #eee;";
-    const handleIcon = document.createElement("span");
-    handleIcon.textContent = "⋮⋮⋮";
-    handleIcon.style.cssText = "color:#bbb;font-size:11px;letter-spacing:2px;";
-    handle.appendChild(handleIcon);
-    wrapper.appendChild(handle);
-
-    // Table element
+    // ── Table ──
     const table = document.createElement("table");
     table.style.cssText = "border-collapse:collapse;display:table;";
     if (rows.length === 0) { wrapper.appendChild(table); return wrapper; }
 
-    // Column hover grips (invisible by default, appear on column hover)
-    let dragColIdx = -1;
-    let dragRowIdx = -1;
+    // ── Selection overlay — highlights entire table when CM6 selection covers it ──
+    const selectionOverlay = document.createElement("div");
+    selectionOverlay.style.cssText =
+      "position:absolute;inset:0;background:rgba(124,108,250,0.1);pointer-events:none;" +
+      "display:none;z-index:1;border-radius:2px;";
+    wrapper.appendChild(selectionOverlay);
 
-    // Build rows
+    // Poll CM6 selection to show/hide overlay (self-cleaning when disconnected)
+    const checkSelection = (): void => {
+      if (!wrapper.isConnected) return; // stop when widget removed
+      const v = self.viewRef.current;
+      if (v && !self.editing) {
+        const sel = v.state.selection.main;
+        const tableEnd = self.tableFrom + self.source.length;
+        const isSelected = sel.from !== sel.to && sel.from <= self.tableFrom && sel.to >= tableEnd;
+        selectionOverlay.style.display = isSelected ? "block" : "none";
+      } else {
+        selectionOverlay.style.display = "none";
+      }
+      requestAnimationFrame(checkSelection);
+    };
+    requestAnimationFrame(checkSelection);
+
+    // ── Drag indicator overlay (full-height vertical line) ──
+    const colIndicator = document.createElement("div");
+    colIndicator.style.cssText =
+      "position:absolute;width:2px;background:" + SELECT_BORDER + ";pointer-events:none;" +
+      "top:0;bottom:0;display:none;z-index:2;border-radius:1px;";
+    wrapper.appendChild(colIndicator);
+
+    const rowIndicator = document.createElement("div");
+    rowIndicator.style.cssText =
+      "position:absolute;height:2px;background:" + SELECT_BORDER + ";pointer-events:none;" +
+      "left:0;right:0;display:none;z-index:2;border-radius:1px;";
+    wrapper.appendChild(rowIndicator);
+
+    // Floating pill that follows the mouse during column drag
+    const floatingPill = document.createElement("div");
+    floatingPill.style.cssText =
+      "position:absolute;width:16px;height:6px;border-radius:3px;background:" + SELECT_BORDER + ";" +
+      "pointer-events:none;display:none;z-index:3;top:4px;";
+    wrapper.appendChild(floatingPill);
+
+    // Floating pill for row drag
+    const floatingRowPill = document.createElement("div");
+    floatingRowPill.style.cssText =
+      "position:absolute;width:6px;height:16px;border-radius:3px;background:" + SELECT_BORDER + ";" +
+      "pointer-events:none;display:none;z-index:3;left:5px;";
+    wrapper.appendChild(floatingRowPill);
+
+    // ── Helpers ──
+
+    function getColumnCells(colIdx: number): HTMLElement[] {
+      const result: HTMLElement[] = [];
+      table.querySelectorAll("tr").forEach((tr) => {
+        const cells = tr.querySelectorAll(".nexus-cell");
+        if (cells[colIdx]) result.push(cells[colIdx] as HTMLElement);
+      });
+      return result;
+    }
+
+    function getHeaderCells(): NodeListOf<Element> {
+      return table.querySelectorAll("tr:nth-child(2) .nexus-cell");
+    }
+
+    function colAtClientX(clientX: number): number {
+      const cells = getHeaderCells();
+      for (let i = 0; i < cells.length; i++) {
+        const rect = cells[i].getBoundingClientRect();
+        if (clientX >= rect.left && clientX <= rect.right) return i;
+      }
+      return -1;
+    }
+
+    function rowAtClientY(clientY: number): number {
+      // Skip header (index 0), only match data rows (index >= 1)
+      const dataRows = Array.from(table.querySelectorAll("tr")).filter((_, i) => i > 0);
+      for (let i = 1; i < dataRows.length; i++) { // start at 1 to skip header row
+        const rect = dataRows[i].getBoundingClientRect();
+        if (clientY >= rect.top && clientY <= rect.bottom) return i;
+      }
+      return -1;
+    }
+
+    function showColIndicator(targetCol: number): void {
+      if (draggingCol < 0 || targetCol === draggingCol) { colIndicator.style.display = "none"; dropTargetCol = -1; return; }
+      dropTargetCol = targetCol;
+      const cells = getHeaderCells();
+      const cell = cells[targetCol] as HTMLElement | undefined;
+      if (!cell) return;
+      const wrapperRect = wrapper.getBoundingClientRect();
+      const cellRect = cell.getBoundingClientRect();
+      const bounds = getContentBounds();
+      const rawX = draggingCol < targetCol ? cellRect.right : cellRect.left;
+      const clampedX = Math.max(bounds.left, Math.min(rawX, bounds.right));
+      colIndicator.style.left = (clampedX - wrapperRect.left - 1) + "px";
+      colIndicator.style.display = "block";
+    }
+
+    function showRowIndicator(targetRow: number): void {
+      if (draggingRow < 0 || targetRow === draggingRow) { rowIndicator.style.display = "none"; dropTargetRow = -1; return; }
+      dropTargetRow = targetRow;
+      const dataRows = Array.from(table.querySelectorAll("tr")).filter((_, i) => i > 0);
+      const row = dataRows[targetRow] as HTMLElement | undefined;
+      if (!row) return;
+      const wrapperRect = wrapper.getBoundingClientRect();
+      const rowRect = row.getBoundingClientRect();
+      const y = draggingRow < targetRow ? rowRect.bottom - wrapperRect.top : rowRect.top - wrapperRect.top;
+      rowIndicator.style.top = (y - 1) + "px";
+      rowIndicator.style.display = "block";
+    }
+
+    function hideIndicators(): void {
+      colIndicator.style.display = "none";
+      rowIndicator.style.display = "none";
+      dropTargetCol = -1;
+      dropTargetRow = -1;
+    }
+
+    function clearDragHighlights(): void {
+      table.querySelectorAll(".nexus-cell").forEach((el) => {
+        const h = el as HTMLElement;
+        h.style.background = h.tagName === "TH" ? "#fafafa" : "";
+      });
+    }
+
+    function clearSelection(): void {
+      selectedCol = -1;
+      selectedRow = -1;
+      table.querySelectorAll(".nexus-cell").forEach((el) => {
+        const h = el as HTMLElement;
+        h.style.background = h.tagName === "TH" ? "#fafafa" : "";
+      });
+      table.querySelectorAll(".nexus-col-grip").forEach((el) => {
+        (el as HTMLElement).style.background = "";
+      });
+      table.querySelectorAll(".nexus-row-grip").forEach((el) => {
+        (el as HTMLElement).style.background = "";
+      });
+    }
+
+    function highlightColumn(colIdx: number): void {
+      clearSelection();
+      selectedCol = colIdx;
+      const gripCells = table.querySelectorAll(".nexus-col-grip");
+      if (gripCells[colIdx]) (gripCells[colIdx] as HTMLElement).style.background = SELECT_BORDER;
+      getColumnCells(colIdx).forEach((el) => { el.style.background = SELECT_BG; });
+    }
+
+    function highlightRow(rowIdx: number): void {
+      clearSelection();
+      selectedRow = rowIdx;
+      const trs = Array.from(table.querySelectorAll("tr")).filter((_, i) => i > 0);
+      if (trs[rowIdx]) {
+        trs[rowIdx].querySelectorAll(".nexus-cell").forEach((el) => {
+          (el as HTMLElement).style.background = SELECT_BG;
+        });
+        const grip = trs[rowIdx].querySelector(".nexus-row-grip");
+        if (grip) (grip as HTMLElement).style.background = SELECT_BORDER;
+      }
+    }
+
+    function createGripPill(): HTMLElement {
+      const pill = document.createElement("div");
+      pill.style.cssText =
+        "width:16px;height:6px;border-radius:3px;background:" + GRIP_BG + ";" +
+        "margin:0 auto;transition:background .15s;";
+      return pill;
+    }
+
+    // ── Custom drag handlers (mousedown/mousemove/mouseup, no HTML5 drag) ──
+
+    // Get the content area boundaries (excluding grip column)
+    function getContentBounds(): { left: number; right: number; top: number; bottom: number } {
+      const cells = getHeaderCells();
+      if (cells.length === 0) return wrapper.getBoundingClientRect();
+      const first = cells[0].getBoundingClientRect();
+      const last = cells[cells.length - 1].getBoundingClientRect();
+      return { left: first.left, right: last.right, top: first.top, bottom: last.bottom };
+    }
+
+    function onDragMove(e: MouseEvent): void {
+      e.preventDefault();
+      const wrapperRect = wrapper.getBoundingClientRect();
+
+      if (draggingCol >= 0) {
+        // Move floating pill horizontally, constrained to content columns
+        const bounds = getContentBounds();
+        const clampedX = Math.max(bounds.left, Math.min(e.clientX, bounds.right));
+        floatingPill.style.left = (clampedX - wrapperRect.left - 8) + "px";
+
+        const target = colAtClientX(clampedX);
+        if (target >= 0 && target !== draggingCol) {
+          showColIndicator(target);
+        } else {
+          colIndicator.style.display = "none";
+          dropTargetCol = -1;
+        }
+      }
+      if (draggingRow >= 0) {
+        // Move floating pill vertically, constrained to non-header data rows
+        const dataRows = Array.from(table.querySelectorAll("tr")).filter((_, i) => i > 0);
+        // dataRows[0] is header, dataRows[1+] are body rows — clamp to body rows only
+        const firstBodyRow = dataRows[1]?.getBoundingClientRect();
+        const lastRow = dataRows[dataRows.length - 1]?.getBoundingClientRect();
+        const minY = firstBodyRow ? firstBodyRow.top : wrapperRect.top;
+        const maxY = lastRow ? lastRow.bottom : wrapperRect.bottom;
+        const clampedY = Math.max(minY, Math.min(e.clientY, maxY));
+        floatingRowPill.style.top = (clampedY - wrapperRect.top - 8) + "px";
+
+        const target = rowAtClientY(clampedY);
+        if (target >= 0 && target !== draggingRow) {
+          showRowIndicator(target);
+        } else {
+          rowIndicator.style.display = "none";
+          dropTargetRow = -1;
+        }
+      }
+    }
+
+    function onDragEnd(): void {
+      if (draggingCol >= 0 && dropTargetCol >= 0 && dropTargetCol !== draggingCol) {
+        self.moveColumn(draggingCol, dropTargetCol);
+      }
+      if (draggingRow >= 0 && dropTargetRow >= 0 && dropTargetRow !== draggingRow) {
+        self.moveRow(draggingRow, dropTargetRow);
+      }
+      clearDragHighlights();
+      hideIndicators();
+      floatingPill.style.display = "none";
+      floatingRowPill.style.display = "none";
+      gripRow.style.opacity = "0";
+      draggingCol = -1;
+      draggingRow = -1;
+      document.removeEventListener("mousemove", onDragMove);
+      document.removeEventListener("mouseup", onDragEnd);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+
+    function startColDrag(colIdx: number, startX: number): void {
+      draggingCol = colIdx;
+      draggingRow = -1;
+      // Highlight source column
+      getColumnCells(colIdx).forEach((el) => { el.style.background = DRAG_HIGHLIGHT_BG; });
+      // Hide grip row, show floating pill instead
+      gripRow.style.opacity = "0";
+      const wrapperRect = wrapper.getBoundingClientRect();
+      floatingPill.style.left = (startX - wrapperRect.left - 8) + "px";
+      floatingPill.style.display = "block";
+      document.addEventListener("mousemove", onDragMove);
+      document.addEventListener("mouseup", onDragEnd);
+      document.body.style.cursor = "grabbing";
+      document.body.style.userSelect = "none";
+    }
+
+    function startRowDrag(rowIdx: number, startY: number): void {
+      draggingRow = rowIdx;
+      draggingCol = -1;
+      // Highlight source row
+      const trs = Array.from(table.querySelectorAll("tr")).filter((_, i) => i > 0);
+      if (trs[rowIdx]) {
+        trs[rowIdx].querySelectorAll(".nexus-cell").forEach((el) => {
+          (el as HTMLElement).style.background = DRAG_HIGHLIGHT_BG;
+        });
+      }
+      // Show floating row pill
+      const wrapperRect = wrapper.getBoundingClientRect();
+      floatingRowPill.style.top = (startY - wrapperRect.top - 8) + "px";
+      floatingRowPill.style.display = "block";
+      // Hide the source row grip
+      const grip = trs[rowIdx]?.querySelector(".nexus-row-grip") as HTMLElement | null;
+      if (grip) grip.style.opacity = "0";
+      document.addEventListener("mousemove", onDragMove);
+      document.addEventListener("mouseup", onDragEnd);
+      document.body.style.cursor = "grabbing";
+      document.body.style.userSelect = "none";
+    }
+
+    // ── Column grip row ──
+    const gripRow = document.createElement("tr");
+    gripRow.style.cssText = "opacity:0;transition:opacity .15s;";
+
+    const gripSpacer = document.createElement("td");
+    gripSpacer.style.cssText = "width:16px;min-width:16px;padding:0;border:none;";
+    gripRow.appendChild(gripSpacer);
+
+    for (let c = 0; c < colCount; c++) {
+      const gripCell = document.createElement("td");
+      gripCell.className = "nexus-col-grip";
+      gripCell.style.cssText =
+        "padding:4px 0;text-align:center;cursor:grab;user-select:none;border:none;";
+      const pill = createGripPill();
+      gripCell.appendChild(pill);
+
+      gripCell.addEventListener("mouseenter", () => { if (draggingCol < 0) pill.style.background = GRIP_BG_HOVER; });
+      gripCell.addEventListener("mouseleave", () => { if (draggingCol < 0) pill.style.background = GRIP_BG; });
+
+      const colIdx = c;
+
+      gripCell.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        startColDrag(colIdx, e.clientX);
+      });
+
+      gripCell.addEventListener("click", (e) => {
+        e.stopPropagation();
+        highlightColumn(colIdx);
+        wrapper.focus();
+      });
+
+      gripRow.appendChild(gripCell);
+    }
+    table.appendChild(gripRow);
+
+    // ── Data rows ──
     let rowIdx = 0;
     for (const astRow of rows) {
       const isHeader = rowIdx === 0;
@@ -146,26 +464,69 @@ export class EditableTableWidget extends WidgetType {
       const sourceLineIdx = dataLineIndices[rowIdx];
       const curRowIdx = rowIdx;
 
+      // Row grip
+      const rowGrip = document.createElement(isHeader ? "th" : "td");
+      rowGrip.className = "nexus-row-grip";
+      rowGrip.style.cssText =
+        "width:16px;min-width:16px;max-width:16px;padding:6px 2px;text-align:center;" +
+        "cursor:" + (isHeader ? "default" : "grab") + ";user-select:none;border:none;" +
+        "border-right:1px solid #eee;vertical-align:middle;" +
+        "opacity:0;transition:opacity .15s;";
+
+      if (!isHeader) {
+        const rowPill = createGripPill();
+        rowPill.style.width = "6px";
+        rowPill.style.height = "16px";
+        rowPill.style.borderRadius = "3px";
+        rowGrip.appendChild(rowPill);
+
+        rowGrip.addEventListener("mouseenter", () => { if (draggingRow < 0) rowPill.style.background = GRIP_BG_HOVER; });
+        rowGrip.addEventListener("mouseleave", () => { if (draggingRow < 0) rowPill.style.background = GRIP_BG; });
+
+        rowGrip.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          startRowDrag(curRowIdx, e.clientY);
+        });
+
+        rowGrip.addEventListener("click", (e) => {
+          e.stopPropagation();
+          highlightRow(curRowIdx);
+          wrapper.focus();
+        });
+      }
+
+      tr.appendChild(rowGrip);
+
+      // Content cells
       for (let colIdx = 0; colIdx < astCells.length; colIdx++) {
         const td = document.createElement(isHeader ? "th" : "td");
-        td.contentEditable = "true";
+        td.className = "nexus-cell";
         td.textContent = extractCellText(astCells[colIdx]);
         td.style.cssText =
           "border-bottom:1px solid #eee;border-right:1px solid #eee;padding:8px 12px;" +
-          "text-align:left;outline:none;min-width:60px;vertical-align:top;";
-        if (isHeader) td.style.cssText += "font-weight:bold;background:#fafafa;";
+          "text-align:left;outline:none;min-width:60px;vertical-align:top;cursor:text;";
+        if (isHeader) { td.style.fontWeight = "bold"; td.style.background = "#fafafa"; td.style.borderTop = "1px solid #eee"; }
 
-        // Last column: no right border
-        if (colIdx === astCells.length - 1) td.style.borderRight = "none";
-
-        td.addEventListener("focus", () => { self.editing = true; tableEditingCount++; });
-        td.addEventListener("blur", () => { self.editing = false; tableEditingCount--; });
+        // Only activate contentEditable on click, deactivate on blur
+        td.addEventListener("mousedown", (e) => {
+          e.stopPropagation();
+          td.contentEditable = "true";
+          // Defer focus to next tick so contentEditable is active
+          requestAnimationFrame(() => td.focus());
+        });
+        td.addEventListener("focus", () => { self.editing = true; tableEditingCount++; clearSelection(); });
+        td.addEventListener("blur", () => {
+          self.editing = false;
+          tableEditingCount--;
+          td.contentEditable = "false";
+        });
 
         td.addEventListener("input", () => {
           const v = self.viewRef.current;
           if (!v || sourceLineIdx === undefined) return;
           const vals: string[] = [];
-          tr.querySelectorAll("th,td").forEach((el) => vals.push(el.textContent ?? ""));
+          tr.querySelectorAll(".nexus-cell").forEach((el) => vals.push(el.textContent ?? ""));
           const newLine = "| " + vals.join(" | ") + " |";
           let off = self.tableFrom;
           for (let i = 0; i < sourceLineIdx; i++) off += sourceLines[i].length + 1;
@@ -177,78 +538,26 @@ export class EditableTableWidget extends WidgetType {
         td.addEventListener("keydown", (e) => {
           if (e.key === "Tab") {
             e.preventDefault();
-            const all = table.querySelectorAll("th[contenteditable],td[contenteditable]");
+            const all = table.querySelectorAll(".nexus-cell");
             const idx = Array.from(all).indexOf(td);
             const next = e.shiftKey ? idx - 1 : idx + 1;
             if (next >= 0 && next < all.length) (all[next] as HTMLElement).focus();
           }
         });
 
-        // Column drag: header cells are column drag sources
-        if (isHeader) {
-          td.draggable = true;
-          td.addEventListener("dragstart", (e) => {
-            dragColIdx = colIdx; dragRowIdx = -1;
-            e.dataTransfer!.effectAllowed = "move";
-            e.dataTransfer!.setData("text/x-nexus-col", String(colIdx));
-            td.style.opacity = "0.5";
-          });
-          td.addEventListener("dragend", () => { td.style.opacity = "1"; });
-        }
-
-        // Column drop target (all cells in a column accept drops)
-        td.addEventListener("dragover", (e) => {
-          if (dragColIdx >= 0 && dragColIdx !== colIdx) {
-            e.preventDefault();
-            td.style.borderLeft = "2px solid #6c8dfa";
-          }
-          if (dragRowIdx >= 0 && dragRowIdx !== curRowIdx) {
-            e.preventDefault();
-            tr.style.borderTop = "2px solid #6c8dfa";
-          }
-        });
-        td.addEventListener("dragleave", () => {
-          td.style.borderLeft = "";
-          tr.style.borderTop = "";
-        });
-        td.addEventListener("drop", (e) => {
-          e.preventDefault();
-          td.style.borderLeft = "";
-          tr.style.borderTop = "";
-          if (dragColIdx >= 0 && dragColIdx !== colIdx) {
-            self.moveColumn(dragColIdx, colIdx);
-            dragColIdx = -1;
-          }
-          if (dragRowIdx >= 0 && dragRowIdx !== curRowIdx) {
-            self.moveRow(dragRowIdx, curRowIdx);
-            dragRowIdx = -1;
-          }
-        });
-
         tr.appendChild(td);
       }
 
-      // Row drag: non-header rows are draggable from left edge area
-      if (!isHeader) {
-        tr.addEventListener("mousedown", (e) => {
-          // Only start drag from the leftmost 20px of the row
-          const rect = tr.getBoundingClientRect();
-          if (e.clientX - rect.left > 20) return;
-          tr.draggable = true;
-        });
-        tr.addEventListener("dragstart", (e) => {
-          dragRowIdx = curRowIdx; dragColIdx = -1;
-          e.dataTransfer!.effectAllowed = "move";
-          e.dataTransfer!.setData("text/x-nexus-row", String(curRowIdx));
-          tr.style.opacity = "0.5";
-        });
-        tr.addEventListener("dragend", () => { tr.style.opacity = "1"; tr.draggable = false; });
-      }
-
-      // Right-click context menu
       tr.addEventListener("contextmenu", (e) => {
         e.preventDefault();
-        showContextMenu(e.clientX, e.clientY, self, curRowIdx, isHeader, colCount, rows.length, wrapper);
+        const clickedCell = (e.target as HTMLElement).closest("th,td") as HTMLElement | null;
+        let clickedCol = 0;
+        if (clickedCell) {
+          const cells = Array.from(tr.querySelectorAll("th,td"));
+          const cellIdx = cells.indexOf(clickedCell);
+          clickedCol = Math.max(0, cellIdx - 1);
+        }
+        showContextMenu(e.clientX, e.clientY, self, curRowIdx, isHeader, clickedCol, colCount, rows.length, wrapper);
       });
 
       table.appendChild(tr);
@@ -257,11 +566,11 @@ export class EditableTableWidget extends WidgetType {
 
     wrapper.appendChild(table);
 
-    // "+" buttons (hidden, appear on hover)
+    // ── "+" buttons ──
     const btnCss = "position:absolute;width:20px;height:20px;border:1px solid #ddd;" +
       "border-radius:50%;background:#fff;cursor:pointer;font-size:14px;line-height:1;" +
       "display:flex;align-items:center;justify-content:center;color:#999;padding:0;" +
-      "opacity:0;transition:opacity .15s;";
+      "opacity:0;transition:opacity .15s;z-index:1;";
 
     const addCol = document.createElement("button");
     addCol.textContent = "+";
@@ -277,17 +586,67 @@ export class EditableTableWidget extends WidgetType {
     addRow.addEventListener("click", () => self.addRow());
     wrapper.appendChild(addRow);
 
-    // Show/hide on hover
-    wrapper.addEventListener("mouseenter", () => {
-      handle.style.opacity = "1";
-      addCol.style.opacity = "1";
-      addRow.style.opacity = "1";
+    // ── Per-element hover (suppressed during drag) ──
+    function isDragging(): boolean { return draggingCol >= 0 || draggingRow >= 0; }
+
+    const headerTr = table.querySelectorAll("tr")[1] as HTMLElement | undefined;
+    gripRow.addEventListener("mouseenter", () => { if (!isDragging()) gripRow.style.opacity = "1"; });
+    gripRow.addEventListener("mouseleave", () => { if (!isDragging()) gripRow.style.opacity = "0"; });
+    if (headerTr) {
+      headerTr.addEventListener("mouseenter", () => { if (!isDragging()) gripRow.style.opacity = "1"; });
+      headerTr.addEventListener("mouseleave", () => { if (!isDragging()) gripRow.style.opacity = "0"; });
+    }
+
+    table.querySelectorAll("tr").forEach((tr, trIdx) => {
+      if (trIdx === 0) return;
+      const grip = tr.querySelector(".nexus-row-grip") as HTMLElement | null;
+      if (!grip) return;
+      tr.addEventListener("mouseenter", () => { if (!isDragging()) grip.style.opacity = "1"; });
+      tr.addEventListener("mouseleave", () => { if (!isDragging()) grip.style.opacity = "0"; });
     });
-    wrapper.addEventListener("mouseleave", () => {
-      handle.style.opacity = "0";
-      addCol.style.opacity = "0";
-      addRow.style.opacity = "0";
+
+    addCol.addEventListener("mouseenter", () => { if (!isDragging()) addCol.style.opacity = "1"; });
+    addCol.addEventListener("mouseleave", () => { if (!isDragging()) addCol.style.opacity = "0"; });
+    table.querySelectorAll("tr").forEach((tr, trIdx) => {
+      if (trIdx === 0) return;
+      const cells = tr.querySelectorAll("th,td");
+      const lastCell = cells[cells.length - 1] as HTMLElement | null;
+      if (lastCell) {
+        lastCell.addEventListener("mouseenter", () => { if (!isDragging()) addCol.style.opacity = "1"; });
+        lastCell.addEventListener("mouseleave", () => { if (!isDragging()) addCol.style.opacity = "0"; });
+      }
     });
+
+    addRow.addEventListener("mouseenter", () => { addRow.style.opacity = "1"; });
+    addRow.addEventListener("mouseleave", () => { addRow.style.opacity = "0"; });
+    const allDataRows = Array.from(table.querySelectorAll("tr")).filter((_, i) => i > 0);
+    const lastDataRow = allDataRows[allDataRows.length - 1] as HTMLElement | undefined;
+    if (lastDataRow) {
+      lastDataRow.addEventListener("mouseenter", () => { addRow.style.opacity = "1"; });
+      lastDataRow.addEventListener("mouseleave", () => { addRow.style.opacity = "0"; });
+    }
+
+    wrapper.addEventListener("click", (e) => {
+      if (!(e.target as HTMLElement).closest(".nexus-cell") &&
+          !(e.target as HTMLElement).closest(".nexus-row-grip") &&
+          !(e.target as HTMLElement).closest(".nexus-col-grip")) {
+        clearSelection();
+      }
+    });
+
+    wrapper.addEventListener("keydown", (e) => {
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (selectedCol >= 0) {
+          e.preventDefault();
+          self.deleteColumn(selectedCol);
+        } else if (selectedRow >= 0) {
+          e.preventDefault();
+          self.deleteRow(selectedRow);
+        }
+      }
+    });
+    wrapper.tabIndex = -1;
+    wrapper.style.outline = "none";
 
     return wrapper;
   }
@@ -297,10 +656,9 @@ function showContextMenu(
   x: number, y: number,
   widget: EditableTableWidget,
   rowIdx: number, isHeader: boolean,
-  colCount: number, rowCount: number,
+  colIdx: number, colCount: number, rowCount: number,
   container: HTMLElement
 ): void {
-  // Remove any existing context menu
   container.querySelector(".nexus-table-ctx")?.remove();
 
   const menu = document.createElement("div");
@@ -326,18 +684,15 @@ function showContextMenu(
     menu.appendChild(item);
   }
 
-  if (!isHeader && rowCount > 2) {
+  if (!isHeader) {
     addItem("Delete row", () => (widget as any).deleteRow(rowIdx));
   }
-  if (colCount > 1) {
-    addItem("Delete column", () => (widget as any).deleteColumn(0)); // TODO: detect which column
-  }
+  addItem("Delete column", () => (widget as any).deleteColumn(colIdx));
   addItem("Add row below", () => (widget as any).addRow());
   addItem("Add column right", () => (widget as any).addColumn());
 
   document.body.appendChild(menu);
 
-  // Close on click outside
   const close = (e: MouseEvent) => {
     if (!menu.contains(e.target as Node)) {
       menu.remove();

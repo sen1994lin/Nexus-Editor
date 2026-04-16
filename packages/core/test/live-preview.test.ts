@@ -104,12 +104,14 @@ describe("live preview", () => {
 
     const table = container.querySelector("table");
     expect(table).not.toBeNull();
-    // Header cell
-    const th = table?.querySelector("th");
-    expect(th?.textContent).toBe("A");
-    expect(th?.contentEditable).toBe("true");
-    // Header cell "A" is the first <th> (grip row uses <td>)
-    expect(table?.querySelector("th")?.textContent).toBe("A");
+    // First <th> is the row grip, second <th> is "A"
+    const ths = table?.querySelectorAll("th");
+    // Row grip + 2 content headers = 3 th elements
+    expect(ths!.length).toBeGreaterThanOrEqual(3);
+    // Content header cells have nexus-cell class (contentEditable activates on click)
+    const headerA = ths![1]; // skip row grip
+    expect(headerA?.textContent).toBe("A");
+    expect(headerA?.classList.contains("nexus-cell")).toBe(true);
     editor.destroy();
   });
 

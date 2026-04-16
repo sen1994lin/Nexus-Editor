@@ -163,8 +163,8 @@ export function createEditor(config: EditorConfig): EditorAPI {
         lineNumbers(),
         EditorView.theme({
           "&": { fontSize: "15px" },
-          ".cm-content": { padding: "8px 0" },
-          ".cm-line": { padding: "0 12px" },
+          ".cm-content": { padding: "16px 0" },
+          ".cm-line": { padding: "0 20px" },
           ".cm-gutters": { borderRight: "1px solid #eee", background: "#fafafa" },
           ".cm-lineNumbers .cm-gutterElement": {
             padding: "0 8px 0 12px",
