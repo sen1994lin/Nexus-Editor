@@ -1,6 +1,6 @@
 import { StateField, type Extension, type Range, type SelectionRange, type Transaction } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, WidgetType } from "@codemirror/view";
-import type { Heading, Root, Table } from "mdast";
+import type { Heading, List, Root, Table } from "mdast";
 
 import { collectLivePreviewRanges, selectionIntersects } from "./live-preview-ranges";
 import { renderLivePreviewNode } from "./live-preview-renderers";
@@ -175,6 +175,78 @@ function renderTableWidget(node: Table): HTMLElement {
 
 const SEPARATOR_RE = /^\|?\s*[-:]+\s*(\|\s*[-:]+\s*)*\|?\s*$/;
 
+const LIST_MARKER_RE = /^(\s*)([-*+]|\d+[.)]) /;
+const CHECKBOX_RE = /^\[([ xX])\] /;
+
+function buildListDecorations(
+  range: { from: number; to: number; node: List },
+  doc: string,
+  decos: Range<Decoration>[]
+): void {
+  const source = doc.slice(range.from, range.to);
+  const lines = source.split("\n");
+  let offset = range.from;
+  const isOrdered = range.node.ordered === true;
+  let orderNum = range.node.start ?? 1;
+
+  for (const line of lines) {
+    const lineEnd = offset + line.length;
+    const markerMatch = LIST_MARKER_RE.exec(line);
+
+    if (markerMatch) {
+      const indent = markerMatch[1];
+      const marker = markerMatch[2];
+      const markerStart = offset + indent.length;
+      const markerEnd = offset + markerMatch[0].length;
+
+      // Replace the marker (- or 1.) with a styled bullet/number
+      const bullet = document.createElement("span");
+      if (isOrdered) {
+        bullet.textContent = `${orderNum}. `;
+        bullet.style.color = "#888";
+        orderNum++;
+      } else {
+        bullet.textContent = "\u2022 ";
+        bullet.style.color = "#888";
+      }
+      decos.push(
+        Decoration.replace({ widget: createWidget(bullet) }).range(markerStart, markerEnd)
+      );
+
+      // Check for task list checkbox after the marker
+      const afterMarker = line.slice(markerMatch[0].length);
+      const checkMatch = CHECKBOX_RE.exec(afterMarker);
+      if (checkMatch) {
+        const checkStart = markerEnd;
+        const checkEnd = markerEnd + checkMatch[0].length;
+        const isChecked = checkMatch[1] !== " ";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = isChecked;
+        checkbox.disabled = true;
+        checkbox.style.marginRight = "4px";
+        checkbox.style.verticalAlign = "middle";
+
+        decos.push(
+          Decoration.replace({ widget: createWidget(checkbox) }).range(checkStart, checkEnd)
+        );
+
+        // Strikethrough completed items
+        if (isChecked && checkEnd < lineEnd) {
+          decos.push(
+            Decoration.mark({
+              attributes: { style: "text-decoration: line-through; color: #999" }
+            }).range(checkEnd, lineEnd)
+          );
+        }
+      }
+    }
+
+    offset = lineEnd + 1;
+  }
+}
+
 function buildTableDecorations(
   range: { from: number; to: number },
   doc: string,
@@ -278,6 +350,12 @@ function buildDecorations(
           block: true
         }).range(range.from, range.to)
       );
+    } else if (range.node.type === "list") {
+      buildListDecorations(
+        range as { from: number; to: number; node: List },
+        doc,
+        decos
+      );
     } else if (range.node.type === "image") {
       const cursorOnImage = selectionIntersects(range.from, range.to, selection);
 
@@ -311,7 +389,7 @@ function buildDecorations(
         );
       }
     } else {
-      if (range.node.type === "heading" || range.node.type === "table") {
+      if (range.node.type === "heading" || range.node.type === "table" || range.node.type === "list") {
         parentSpans.push([range.from, range.to]);
       }
 
