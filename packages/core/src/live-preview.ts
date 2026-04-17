@@ -277,12 +277,9 @@ function buildCodeBlockDecorations(
           })()
         }).range(lineStart, lineEnd));
       } else {
-        // View: closing ``` → empty placeholder (line stays, text hidden, cursor can enter)
-        decos.push(Decoration.replace({
-          widget: new (class extends WidgetType {
-            toDOM() { return document.createElement("span"); }
-            ignoreEvent() { return false; }
-          })()
+        // View: closing ``` → transparent text (keeps DOM positions for cursor)
+        decos.push(Decoration.mark({
+          attributes: { style: "color:transparent;font-size:0;line-height:0;overflow:hidden;max-width:0;display:inline-block;" }
         }).range(lineStart, lineEnd));
       }
     }
