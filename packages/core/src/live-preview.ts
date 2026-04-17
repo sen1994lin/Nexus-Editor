@@ -226,7 +226,9 @@ function buildCodeBlockDecorations(
 
     // Line style — only border-radius differs between first/last/middle
     const radius = isFirstLine ? "border-radius:4px 4px 0 0;" : isLastLine ? "border-radius:0 0 4px 4px;" : "";
-    const lineAttrs: Record<string, string> = { style: BASE + radius };
+    // First line needs position:relative so the language label can be position:absolute
+    const pos = isFirstLine ? "position:relative;" : "";
+    const lineAttrs: Record<string, string> = { style: BASE + radius + pos };
     if (isFirstLine) {
       lineAttrs.role = "code";
       if (lang) lineAttrs["aria-label"] = `Code block: ${lang}`;
@@ -248,7 +250,8 @@ function buildCodeBlockDecorations(
               const tag = document.createElement("span");
               tag.textContent = langText || "";
               if (langText) tag.title = "Click to copy code";
-              tag.style.cssText = "float:right;font-size:12px;color:var(--nexus-text-muted,#888);" +
+              tag.style.cssText = "position:absolute;right:8px;top:50%;transform:translateY(-50%);" +
+                "font-size:12px;color:var(--nexus-text-muted,#888);" +
                 "font-family:system-ui,-apple-system,sans-serif;cursor:pointer;user-select:none;" +
                 "padding:0 4px;border-radius:3px;transition:background 0.15s,color 0.15s;";
               if (langText) {
