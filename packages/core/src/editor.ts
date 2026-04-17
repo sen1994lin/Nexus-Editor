@@ -302,7 +302,8 @@ export function createEditor(config: EditorConfig): EditorAPI {
       }
 
       view.dispatch({
-        selection: { anchor, head }
+        selection: { anchor, head },
+        scrollIntoView: true
       });
     },
     setDocument(next) {
