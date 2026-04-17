@@ -351,4 +351,50 @@ describe("createEditor", () => {
     expect(editor.getDocument()).toBe("from-extension");
     editor.destroy();
   });
+
+  // ── TOC extraction ──
+
+  it("extracts table of contents from headings", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue: "# Title\n\nIntro\n\n## Section A\n\n### Sub\n\n## Section B"
+    });
+
+    const toc = editor.getTableOfContents();
+    expect(toc).toHaveLength(4);
+    expect(toc[0]).toMatchObject({ level: 1, text: "Title" });
+    expect(toc[1]).toMatchObject({ level: 2, text: "Section A" });
+    expect(toc[2]).toMatchObject({ level: 3, text: "Sub" });
+    expect(toc[3]).toMatchObject({ level: 2, text: "Section B" });
+    // Positions are valid
+    expect(toc[0].from).toBe(0);
+    expect(toc[0].to).toBe(7);
+    editor.destroy();
+  });
+
+  it("returns empty array for document without headings", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({ container, initialValue: "Just text." });
+
+    expect(editor.getTableOfContents()).toEqual([]);
+    editor.destroy();
+  });
+
+  // ── HTML export ──
+
+  it("exports markdown to semantic HTML", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue: "# Hello\n\n**bold** text\n\n```js\nconsole.log(1)\n```"
+    });
+
+    const html = editor.exportHTML();
+    expect(html).toContain("<h1>Hello</h1>");
+    expect(html).toContain("<strong>bold</strong>");
+    expect(html).toContain("<code");
+    expect(html).toContain("console.log(1)");
+    editor.destroy();
+  });
 });

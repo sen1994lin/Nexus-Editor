@@ -1,7 +1,7 @@
 import { StateField, type Extension, type Range, type SelectionRange, type Transaction } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, WidgetType } from "@codemirror/view";
 import hljs from "highlight.js";
-import type { Code, Heading, List, Root, Table } from "mdast";
+import type { Code, FootnoteDefinition, FootnoteReference, Heading, List, Root, Table } from "mdast";
 
 import { collectLivePreviewRanges, selectionIntersects } from "./live-preview-ranges";
 import { renderLivePreviewNode } from "./live-preview-renderers";
@@ -81,7 +81,7 @@ function buildHeadingDecorations(
     if (cursorOnHeading) {
       decos.push(
         Decoration.mark({
-          attributes: { style: `font-weight: bold; font-size: ${fontSize}; color: #aaa` }
+          attributes: { style: `font-weight: bold; font-size: ${fontSize}; color: var(--nexus-text-muted)` }
         }).range(range.from, textStart)
       );
     } else {
@@ -92,7 +92,9 @@ function buildHeadingDecorations(
       Decoration.mark({
         attributes: {
           style: `font-weight: bold; font-size: ${fontSize}`,
-          "data-heading-level": String(range.node.depth)
+          "data-heading-level": String(range.node.depth),
+          role: "heading",
+          "aria-level": String(range.node.depth)
         }
       }).range(textStart, range.to)
     );
@@ -126,11 +128,11 @@ function buildListDecorations(
       const bullet = document.createElement("span");
       if (isOrdered) {
         bullet.textContent = `${orderNum}. `;
-        bullet.style.color = "#888";
+        bullet.style.color = "var(--nexus-text-muted)";
         orderNum++;
       } else {
         bullet.textContent = "\u2022 ";
-        bullet.style.color = "#888";
+        bullet.style.color = "var(--nexus-text-muted)";
       }
       decos.push(
         Decoration.replace({ widget: createWidget(bullet) }).range(markerStart, markerEnd)
@@ -167,7 +169,7 @@ function buildListDecorations(
         if (isChecked && checkEnd < lineEnd) {
           decos.push(
             Decoration.mark({
-              attributes: { style: "text-decoration: line-through; color: #999" }
+              attributes: { style: "text-decoration: line-through; color: var(--nexus-text-muted)" }
             }).range(checkEnd, lineEnd)
           );
         }
@@ -178,16 +180,16 @@ function buildListDecorations(
   }
 }
 
-// Token-to-color map (GitHub-light theme)
+// Token-to-CSS-variable map (colors come from the theme)
 const HLJS_COLORS: Record<string, string> = {
-  keyword: "#d73a49", "selector-tag": "#d73a49", "built_in": "#d73a49", name: "#d73a49", doctag: "#d73a49",
-  string: "#032f62", attr: "#032f62", symbol: "#032f62", bullet: "#032f62", addition: "#032f62", regexp: "#032f62", link: "#032f62",
-  title: "#6f42c1", section: "#6f42c1", "title.function_": "#6f42c1",
-  comment: "#6a737d", quote: "#6a737d", meta: "#6a737d",
-  number: "#005cc5", literal: "#005cc5",
-  type: "#e36209", params: "#e36209",
-  deletion: "#b31d28",
-  variable: "#24292e", "template-variable": "#24292e",
+  keyword: "var(--nexus-hl-keyword)", "selector-tag": "var(--nexus-hl-keyword)", "built_in": "var(--nexus-hl-keyword)", name: "var(--nexus-hl-keyword)", doctag: "var(--nexus-hl-keyword)",
+  string: "var(--nexus-hl-string)", attr: "var(--nexus-hl-string)", symbol: "var(--nexus-hl-string)", bullet: "var(--nexus-hl-string)", addition: "var(--nexus-hl-string)", regexp: "var(--nexus-hl-string)", link: "var(--nexus-hl-string)",
+  title: "var(--nexus-hl-title)", section: "var(--nexus-hl-title)", "title.function_": "var(--nexus-hl-title)",
+  comment: "var(--nexus-hl-comment)", quote: "var(--nexus-hl-comment)", meta: "var(--nexus-hl-comment)",
+  number: "var(--nexus-hl-number)", literal: "var(--nexus-hl-number)",
+  type: "var(--nexus-hl-type)", params: "var(--nexus-hl-type)",
+  deletion: "var(--nexus-hl-deletion)",
+  variable: "var(--nexus-hl-variable)", "template-variable": "var(--nexus-hl-variable)",
 };
 
 function getTokenColor(scope: string): string | null {
@@ -207,7 +209,7 @@ function buildCodeBlockDecorations(
   const lines = source.split("\n");
   const cursorOnCode = selectionIntersects(range.from, range.to, selection);
   const firstNewline = source.indexOf("\n");
-  const lastNewline = source.lastIndexOf("\n");
+  const isFenced = /^[ \t]*(`{3,}|~{3,})/.test(source);
 
   if (cursorOnCode) {
     // ── Editing mode: fences visible, syntax highlighted ──
@@ -217,13 +219,16 @@ function buildCodeBlockDecorations(
       const isFirstLine = li === 0;
       const isLastLine = li === lines.length - 1;
 
-      decos.push(Decoration.line({
-        attributes: {
-          style: "background:#f6f8fa;font-family:monospace;font-size:0.9em;"
-            + (isFirstLine ? "border-radius:4px 4px 0 0;" : "")
-            + (isLastLine ? "border-radius:0 0 4px 4px;" : "")
-        }
-      }).range(lineStart));
+      const attrs: Record<string, string> = {
+        style: "background:var(--nexus-bg-subtle);font-family:monospace;font-size:0.9em;"
+          + (isFirstLine ? "border-radius:4px 4px 0 0;" : "")
+          + (isLastLine ? "border-radius:0 0 4px 4px;" : "")
+      };
+      if (isFirstLine) {
+        attrs.role = "code";
+        if (range.node.lang) attrs["aria-label"] = `Code block: ${range.node.lang}`;
+      }
+      decos.push(Decoration.line({ attributes: attrs }).range(lineStart));
 
       lineOffset += lines[li].length + 1;
     }
@@ -238,18 +243,18 @@ function buildCodeBlockDecorations(
       const isFirstLine = li === 0;
       const isLastLine = li === lines.length - 1;
 
-      if (isFirstLine || isLastLine) {
+      if (isFenced && (isFirstLine || isLastLine)) {
         // Hide fence lines via line CSS + replace text content
         decos.push(Decoration.line({ attributes: { style: HIDE_LINE } }).range(lineStart));
         if (lineEnd > lineStart) {
           decos.push(Decoration.replace({}).range(lineStart, lineEnd));
         }
       } else {
-        const isFirstContent = li === 1;
-        const isLastContent = li === lines.length - 2;
+        const isFirstContent = isFenced ? li === 1 : isFirstLine;
+        const isLastContent = isFenced ? li === lines.length - 2 : isLastLine;
         decos.push(Decoration.line({
           attributes: {
-            style: "background:#f6f8fa;font-family:monospace;font-size:0.9em;position:relative;"
+            style: "background:var(--nexus-bg-subtle);font-family:monospace;font-size:0.9em;position:relative;"
               + (isFirstContent ? "border-radius:4px 4px 0 0;padding-top:6px;" : "")
               + (isLastContent ? "border-radius:0 0 4px 4px;padding-bottom:6px;" : "")
           }
@@ -260,12 +265,12 @@ function buildCodeBlockDecorations(
     }
 
     // Language label (right-aligned on first content line)
-    if (range.node.lang && firstNewline >= 0) {
+    if (isFenced && range.node.lang && firstNewline >= 0) {
       const firstContentLineStart = range.from + firstNewline + 1;
       const labelEl = document.createElement("span");
       labelEl.textContent = range.node.lang.charAt(0).toUpperCase() + range.node.lang.slice(1);
       labelEl.style.cssText =
-        "position:absolute;right:8px;top:6px;font-size:11px;color:#999;font-family:sans-serif;user-select:none;";
+        "position:absolute;right:8px;top:6px;font-size:11px;color:var(--nexus-text-muted);font-family:sans-serif;user-select:none;";
       decos.push(Decoration.widget({
         widget: new (class extends WidgetType {
           toDOM() { return labelEl; }
@@ -344,17 +349,34 @@ function getInlineMarkerStyle(nodeType: string, source: string): InlineMarkerSty
       for (let i = 0; i < source.length && source[i] === "`"; i++) ticks++;
       return {
         openLen: ticks, closeLen: ticks,
-        style: "font-family:monospace;font-size:0.9em;background:#f0f0f0;padding:1px 4px;border-radius:3px"
+        style: "font-family:monospace;font-size:0.9em;background:var(--nexus-bg-muted);padding:1px 4px;border-radius:3px"
       };
     }
     case "link": {
       // [text](url) — hide [ and ](url)
       const bracketClose = source.indexOf("](");
-      if (bracketClose < 0) return null;
+      if (bracketClose >= 0) {
+        const url = source.slice(bracketClose + 2, source.length - 1);
+        return {
+          openLen: 1,                            // hide [
+          closeLen: source.length - bracketClose, // hide ](url)
+          style: "color:var(--nexus-accent);text-decoration:underline;cursor:pointer",
+          attrs: { "data-link-url": url }
+        };
+      }
+      // Standard autolink: <URL> — hide angle brackets
+      if (source.startsWith("<") && source.endsWith(">")) {
+        return {
+          openLen: 1, closeLen: 1,
+          style: "color:var(--nexus-accent);text-decoration:underline;cursor:pointer",
+          attrs: { "data-link-url": source.slice(1, -1) }
+        };
+      }
+      // GFM autolink literal: bare URL, no markers to hide
       return {
-        openLen: 1,                          // hide [
-        closeLen: source.length - bracketClose - 1, // hide ](url)
-        style: "color:#0969da;text-decoration:underline;cursor:pointer"
+        openLen: 0, closeLen: 0,
+        style: "color:var(--nexus-accent);text-decoration:underline;cursor:pointer",
+        attrs: { "data-link-url": source }
       };
     }
     default:
@@ -397,7 +419,7 @@ function buildDecorations(
     } else if (range.node.type === "image") {
       const cursorOnImage = selectionIntersects(range.from, range.to, selection);
       if (cursorOnImage) {
-        decos.push(Decoration.mark({ attributes: { style: "color: #aaa" } }).range(range.from, range.to));
+        decos.push(Decoration.mark({ attributes: { style: "color: var(--nexus-text-faint)" } }).range(range.from, range.to));
         const preview = document.createElement("span");
         const img = document.createElement("img");
         img.src = range.node.url;
@@ -414,6 +436,65 @@ function buildDecorations(
           }).range(range.from, range.to)
         );
       }
+    } else if (range.node.type === "link" && !config.renderers.link) {
+      const inlineStyle = getInlineMarkerStyle("link", range.source);
+      if (inlineStyle) {
+        const { openLen, closeLen, style, attrs } = inlineStyle;
+        // Always render as widget — no cursor-on/off switching (avoids viewport instability)
+        const linkText = range.source.slice(openLen, range.source.length - closeLen);
+        const span = document.createElement("span");
+        span.textContent = linkText;
+        span.style.cssText = style + ";transition:opacity .15s;";
+        span.addEventListener("mouseenter", () => { span.style.opacity = "0.7"; });
+        span.addEventListener("mouseleave", () => { span.style.opacity = "1"; });
+        if (attrs) {
+          for (const [k, v] of Object.entries(attrs)) span.setAttribute(k, v);
+        }
+        decos.push(Decoration.replace({ widget: createWidget(span) }).range(range.from, range.to));
+      }
+    } else if (range.node.type === "definition") {
+      // Link reference definitions [id]: url — hide via line CSS (not replace, avoids viewport instability)
+      const cursorOnDef = selectionIntersects(range.from, range.to, selection);
+      if (cursorOnDef) {
+        decos.push(Decoration.mark({ attributes: { style: "color:var(--nexus-text-faint);font-size:0.85em" } }).range(range.from, range.to));
+      } else {
+        const HIDE_LINE = "height:0;padding:0;margin:0;overflow:hidden;font-size:0;line-height:0;min-height:0;";
+        // Hide each line of the definition via CSS collapse + text replace
+        const defSource = range.source;
+        const defLines = defSource.split("\n");
+        let lineOffset = range.from;
+        for (const defLine of defLines) {
+          const lineEnd = lineOffset + defLine.length;
+          decos.push(Decoration.line({ attributes: { style: HIDE_LINE } }).range(lineOffset));
+          if (lineEnd > lineOffset) {
+            decos.push(Decoration.replace({}).range(lineOffset, lineEnd));
+          }
+          lineOffset = lineEnd + 1;
+        }
+      }
+    } else if (range.node.type === "footnoteReference") {
+      const ref = range.node as FootnoteReference;
+      const sup = document.createElement("sup");
+      sup.textContent = ref.identifier;
+      sup.style.cssText = "color:var(--nexus-accent);cursor:pointer;font-size:0.8em;vertical-align:super;";
+      decos.push(Decoration.replace({ widget: createWidget(sup) }).range(range.from, range.to));
+    } else if (range.node.type === "footnoteDefinition") {
+      const def = range.node as FootnoteDefinition;
+      const defText = range.source.replace(/^\[\^\w+\]:\s*/, "");
+      const el = document.createElement("div");
+      el.style.cssText = "font-size:0.85em;color:var(--nexus-text-muted);border-top:1px solid var(--nexus-border);padding-top:4px;margin-top:4px;";
+      const marker = document.createElement("sup");
+      marker.textContent = def.identifier;
+      marker.style.cssText = "color:var(--nexus-accent);margin-right:4px;";
+      el.appendChild(marker);
+      el.appendChild(document.createTextNode(defText));
+      // Use line decoration + widget for stable viewport height
+      decos.push(Decoration.line({
+        attributes: { style: "padding:0;margin:0;min-height:0;" }
+      }).range(range.from));
+      decos.push(
+        Decoration.replace({ widget: createWidget(el) }).range(range.from, range.to)
+      );
     } else {
       if (range.node.type === "heading" || range.node.type === "table" || range.node.type === "list") {
         parentSpans.push([range.from, range.to]);
@@ -454,10 +535,15 @@ function buildDecorations(
 
 export function createLivePreviewExtension(
   parser: ParserLike,
-  config: boolean | LivePreviewConfig | undefined
+  config: boolean | LivePreviewConfig | undefined,
+  localeLabels?: LivePreviewLabels
 ): Extension[] {
   const normalized = normalizeConfig(config);
   if (!normalized.enabled) return [];
+  // Locale labels override config labels
+  if (localeLabels) {
+    Object.assign(normalized.labels, localeLabels);
+  }
 
   const viewRef: { current: EditorView | null } = { current: null };
 
@@ -484,5 +570,48 @@ export function createLivePreviewExtension(
     viewRef.current = update.view;
   });
 
-  return [field, viewCapture];
+  // Click to navigate links; arrow-key into link to edit
+  const linkHandler = EditorView.domEventHandlers({
+    mousedown(event, view) {
+      const target = event.target as HTMLElement;
+      const linkEl = target.closest("[data-link-url]");
+      if (!linkEl) return false;
+      const url = linkEl.getAttribute("data-link-url");
+      if (!url) return false;
+
+      event.preventDefault();
+
+      // Internal anchor links: scroll to heading
+      if (url.startsWith("#")) {
+        const targetSlug = url.slice(1).replace(/^-+/, "");
+        const doc = view.state.doc.toString();
+        const headingRe = /^(#{1,6})\s+(.+)$/gm;
+        let m: RegExpExecArray | null;
+        while ((m = headingRe.exec(doc)) !== null) {
+          const headingSlug = m[2].trim()
+            .toLowerCase()
+            .replace(/[^\p{L}\p{N}\s-]/gu, "")
+            .trim()
+            .replace(/\s+/g, "-")
+            .replace(/-+/g, "-")
+            .replace(/^-+|-+$/g, "");
+          if (headingSlug === targetSlug) {
+            view.dispatch({
+              selection: { anchor: m.index },
+              effects: EditorView.scrollIntoView(m.index, { y: "start", yMargin: 20 })
+            });
+            view.focus();
+            return true;
+          }
+        }
+        return true;
+      }
+
+      // External links: open in new tab
+      window.open(url, "_blank", "noopener");
+      return true;
+    }
+  });
+
+  return [field, viewCapture, linkHandler];
 }

@@ -3,13 +3,20 @@ import { EditorView, keymap, dropCursor, lineNumbers } from "@codemirror/view";
 import { indentWithTab } from "@codemirror/commands";
 import { closeBrackets } from "@codemirror/autocomplete";
 import type { Root } from "mdast";
+import type { Heading } from "mdast";
+import rehypeStringify from "rehype-stringify";
 import remarkParse from "remark-parse";
+import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 
 import { EventEmitter } from "./event-emitter";
 import { createLivePreviewExtension } from "./live-preview";
+import { markdownFoldService } from "./markdown-fold";
+import { resolveLocale } from "./locale";
+import { markdownKeymap } from "./markdown-keymap";
+import { createThemeExtension, lightTheme, type NexusTheme } from "./theme";
 import { computeSlashState } from "./slash-state";
-import type { EditorAPI, EditorConfig, EditorEventMap, NexusPlugin, ParserLike } from "./types";
+import type { EditorAPI, EditorConfig, EditorEventMap, NexusPlugin, ParserLike, TocEntry } from "./types";
 import { createWidgetExtension } from "./widget-extension";
 
 function createEmptyAst(): Root {
@@ -25,6 +32,37 @@ function parseDocument(parser: ParserLike, markdown: string): Root {
   } catch {
     return createEmptyAst();
   }
+}
+
+function markdownToHtml(markdown: string, plugins: NexusPlugin[]): string {
+  const processor = unified().use(remarkParse);
+  for (const plugin of plugins) {
+    for (const rp of plugin.remarkPlugins ?? []) {
+      processor.use(rp);
+    }
+  }
+  processor.use(remarkRehype).use(rehypeStringify);
+  return String(processor.processSync(markdown));
+}
+
+function extractToc(ast: Root): TocEntry[] {
+  const entries: TocEntry[] = [];
+  for (const node of ast.children) {
+    if (node.type !== "heading") continue;
+    const h = node as Heading;
+    const from = h.position?.start.offset;
+    const to = h.position?.end.offset;
+    if (typeof from !== "number" || typeof to !== "number") continue;
+    // Extract text from children recursively
+    let text = "";
+    const walk = (n: any) => {
+      if (n.value) text += n.value;
+      if (n.children) for (const c of n.children) walk(c);
+    };
+    walk(h);
+    entries.push({ level: h.depth, text, from, to });
+  }
+  return entries;
 }
 
 function createParser(plugins: NexusPlugin[]): ParserLike {
@@ -51,6 +89,7 @@ export function createEditor(config: EditorConfig): EditorAPI {
   const slashCommands = plugins.flatMap((plugin) => plugin.slashCommands ?? []);
   const cmExtensions = plugins.flatMap((plugin) => plugin.cmExtensions ?? []);
   const widgetDefs = plugins.flatMap((plugin) => plugin.widgets ?? []);
+  const locale = resolveLocale(config.locale);
   const parseDelayMs = config.parseDelayMs ?? 0;
   const emitter = new EventEmitter<EditorEventMap>();
   let destroyed = false;
@@ -102,6 +141,8 @@ export function createEditor(config: EditorConfig): EditorAPI {
       emitChange(markdown);
     }, parseDelayMs);
   }
+
+  const themeExt = createThemeExtension(config.theme ?? lightTheme);
 
   const shortcutExtensions =
     shortcuts.length > 0
@@ -161,18 +202,9 @@ export function createEditor(config: EditorConfig): EditorAPI {
           }
         }),
         lineNumbers(),
-        EditorView.theme({
-          "&": { fontSize: "15px" },
-          ".cm-content": { padding: "16px 0" },
-          ".cm-line": { padding: "0 20px" },
-          ".cm-gutters": { borderRight: "1px solid #eee", background: "#fafafa" },
-          ".cm-lineNumbers .cm-gutterElement": {
-            padding: "0 8px 0 12px",
-            minWidth: "32px",
-            color: "#bbb",
-            fontSize: "13px",
-          }
-        }),
+        themeExt.extension,
+        markdownKeymap(),
+        markdownFoldService(),
         keymap.of([indentWithTab]),
         closeBrackets(),
         dropCursor(),
@@ -212,7 +244,7 @@ export function createEditor(config: EditorConfig): EditorAPI {
             return true;
           },
         }),
-        ...createLivePreviewExtension(parser, config.livePreview),
+        ...createLivePreviewExtension(parser, config.livePreview, { addColumn: locale.addColumn, addRow: locale.addRow }),
         ...createWidgetExtension(parser, widgetDefs),
         ...shortcutExtensions,
         ...cmExtensions
@@ -226,6 +258,16 @@ export function createEditor(config: EditorConfig): EditorAPI {
     },
     getAst() {
       return currentAst;
+    },
+    getTableOfContents() {
+      return extractToc(currentAst);
+    },
+    exportHTML() {
+      return markdownToHtml(view.state.doc.toString(), plugins);
+    },
+    setTheme(theme: NexusTheme) {
+      if (destroyed) return;
+      view.dispatch(themeExt.reconfigure(theme));
     },
     getSelection() {
       const sel = view.state.selection.main;

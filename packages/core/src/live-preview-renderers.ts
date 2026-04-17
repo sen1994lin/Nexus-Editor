@@ -115,34 +115,34 @@ export function createDefaultRenderer(context: LivePreviewRenderContext): HTMLEl
       // Inject minimal hljs theme as inline styles (no external CSS needed)
       const style = document.createElement("style");
       style.textContent = [
-        ".hljs-keyword,.hljs-selector-tag,.hljs-built_in,.hljs-name{color:#d73a49}",
-        ".hljs-string,.hljs-attr,.hljs-symbol,.hljs-bullet,.hljs-addition{color:#032f62}",
-        ".hljs-title,.hljs-section,.hljs-title.function_{color:#6f42c1}",
-        ".hljs-comment,.hljs-quote,.hljs-meta{color:#6a737d}",
-        ".hljs-number,.hljs-literal{color:#005cc5}",
-        ".hljs-type,.hljs-params{color:#e36209}",
-        ".hljs-variable,.hljs-template-variable{color:#24292e}",
-        ".hljs-deletion{color:#b31d28;background:#ffeef0}",
-        ".hljs-regexp,.hljs-link{color:#032f62}",
-        ".hljs-doctag{color:#d73a49}",
+        ".hljs-keyword,.hljs-selector-tag,.hljs-built_in,.hljs-name{color:var(--nexus-hl-keyword)}",
+        ".hljs-string,.hljs-attr,.hljs-symbol,.hljs-bullet,.hljs-addition{color:var(--nexus-hl-string)}",
+        ".hljs-title,.hljs-section,.hljs-title.function_{color:var(--nexus-hl-title)}",
+        ".hljs-comment,.hljs-quote,.hljs-meta{color:var(--nexus-hl-comment)}",
+        ".hljs-number,.hljs-literal{color:var(--nexus-hl-number)}",
+        ".hljs-type,.hljs-params{color:var(--nexus-hl-type)}",
+        ".hljs-variable,.hljs-template-variable{color:var(--nexus-hl-variable)}",
+        ".hljs-deletion{color:var(--nexus-hl-deletion)}",
+        ".hljs-regexp,.hljs-link{color:var(--nexus-hl-string)}",
+        ".hljs-doctag{color:var(--nexus-hl-keyword)}",
       ].join("");
       pre.appendChild(style);
 
       pre.style.display = "block";
       pre.style.position = "relative";
       pre.style.padding = "8px 12px";
-      pre.style.background = "#f6f8fa";
+      pre.style.background = "var(--nexus-bg-subtle)";
       pre.style.borderRadius = "4px";
       pre.style.overflow = "auto";
       pre.style.fontSize = "0.9em";
       pre.style.fontFamily = "monospace";
-      pre.style.color = "#24292e";
+      pre.style.color = "var(--nexus-text)";
       if (lang) {
         pre.style.paddingTop = "28px";
         const langLabel = document.createElement("span");
         langLabel.textContent = lang;
         langLabel.style.cssText =
-          "position:absolute;top:4px;right:8px;font-size:11px;color:#888;" +
+          "position:absolute;top:4px;right:8px;font-size:11px;color:var(--nexus-text-muted);" +
           "font-family:sans-serif;user-select:none;";
         pre.appendChild(langLabel);
       }
@@ -162,12 +162,12 @@ export function createDefaultRenderer(context: LivePreviewRenderContext): HTMLEl
         const cells = "children" in row && Array.isArray(row.children) ? row.children : [];
         for (const cell of cells) {
           const td = document.createElement(i === 0 ? "th" : "td");
-          td.style.border = "1px solid #ddd";
+          td.style.border = "1px solid var(--nexus-border-subtle)";
           td.style.padding = "6px 10px";
           td.style.textAlign = "left";
           if (i === 0) {
             td.style.fontWeight = "bold";
-            td.style.background = "#f6f8fa";
+            td.style.background = "var(--nexus-bg-subtle)";
           }
           // Extract cell text
           if ("children" in cell && Array.isArray(cell.children)) {

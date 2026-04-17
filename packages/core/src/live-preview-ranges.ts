@@ -14,7 +14,10 @@ function isLivePreviewNode(node: Content): node is LivePreviewNode {
   return (
     node.type === "blockquote" ||
     node.type === "code" ||
+    node.type === "definition" ||
     node.type === "delete" ||
+    node.type === "footnoteDefinition" ||
+    node.type === "footnoteReference" ||
     node.type === "list" ||
     node.type === "emphasis" ||
     node.type === "heading" ||
@@ -29,14 +32,15 @@ function isLivePreviewNode(node: Content): node is LivePreviewNode {
 export function selectionIntersects(
   from: number,
   to: number,
-  selection: readonly SelectionRange[]
+  selection: readonly SelectionRange[],
+  inclusiveEnd = false
 ): boolean {
   return selection.some((range) => {
     const rangeFrom = Math.min(range.anchor, range.head);
     const rangeTo = Math.max(range.anchor, range.head);
 
     if (range.empty) {
-      return range.anchor >= from && range.anchor < to;
+      return range.anchor >= from && (inclusiveEnd ? range.anchor <= to : range.anchor < to);
     }
 
     return rangeFrom < to && from < rangeTo;
@@ -82,7 +86,7 @@ function visit(
     const to = child.position?.end.offset;
 
     if (typeof from === "number" && typeof to === "number" && isLivePreviewNode(child)) {
-      if (child.type === "heading" || child.type === "table" || child.type === "list" || child.type === "code") {
+      if (child.type === "heading" || child.type === "table" || child.type === "list" || child.type === "code" || child.type === "definition") {
         // Always emitted regardless of cursor position.
         // buildDecorations decides decoration treatment based on cursor.
         ranges.push({ from, to, node: child, source: doc.slice(from, to) });
@@ -93,8 +97,14 @@ function visit(
         continue;
       }
 
-      if (!selectionIntersects(from, to, selection)) {
+      // Links use inclusive end so cursor at link boundary triggers edit mode
+      const inclusive = child.type === "link";
+      if (!selectionIntersects(from, to, selection, inclusive)) {
         ranges.push({ from, to, node: child, source: doc.slice(from, to) });
+        // Recurse into children for nested inline formatting (e.g. ***bold italic***)
+        if ("children" in child && Array.isArray(child.children)) {
+          visit(child as Parent, doc, selection, ranges);
+        }
         continue;
       }
     }

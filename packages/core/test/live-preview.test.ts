@@ -21,7 +21,8 @@ describe("live preview", () => {
     expect(text).toContain("link");
     // Markers hidden
     expect(text).not.toContain("**");
-    expect(text).not.toContain("](");
+    // Link markers hidden (visually via CSS, may still be in textContent)
+    expect(container.querySelector("[data-link-url]")).not.toBeNull();
     editor.destroy();
   });
 
@@ -69,6 +70,87 @@ describe("live preview", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("changed");
     expect(text).not.toContain("**");
+    editor.destroy();
+  });
+
+  // ── Nested inline formatting ──
+
+  it("renders nested bold+italic with combined styles", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue: "Text ***bold italic***",
+      livePreview: true
+    });
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("bold italic");
+    // All marker chars (***) hidden
+    expect(text).not.toContain("***");
+    expect(text).not.toContain("**");
+    editor.destroy();
+  });
+
+  it("renders mixed marker nesting **_text_** with both styles", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue: "Text **_mixed_**",
+      livePreview: true
+    });
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("mixed");
+    expect(text).not.toContain("**");
+    expect(text).not.toContain("_");
+    editor.destroy();
+  });
+
+  // ── Link Ctrl+Click ──
+
+  it("adds data-link-url attribute to mark-decorated links", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue: "Click [here](https://example.com)",
+      livePreview: true
+    });
+
+    const linkEl = container.querySelector("[data-link-url]");
+    expect(linkEl).not.toBeNull();
+    expect(linkEl?.getAttribute("data-link-url")).toBe("https://example.com");
+    editor.destroy();
+  });
+
+  it("renders links inside ordered lists correctly", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue: "## 目录\n\n1. [项目概述](#项目概述)\n2. [快速开始](#快速开始)\n3. [主要功能](#主要功能)",
+      livePreview: true
+    });
+
+    // Link text elements with data-link-url
+    const links = container.querySelectorAll("[data-link-url]");
+    expect(links.length).toBe(3);
+    expect(links[0].textContent).toBe("项目概述");
+    expect(links[1].textContent).toBe("快速开始");
+    expect(links[2].textContent).toBe("主要功能");
+    editor.destroy();
+  });
+
+  it("hides link markers visually and adds data-link-url", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue: "Click [here](https://example.com) now",
+      livePreview: true
+    });
+
+    const linkEl = container.querySelector("[data-link-url]");
+    expect(linkEl).not.toBeNull();
+    expect(linkEl?.textContent).toBe("here");
+    expect(linkEl?.getAttribute("data-link-url")).toBe("https://example.com");
     editor.destroy();
   });
 
@@ -166,6 +248,61 @@ describe("live preview", () => {
         || (line as HTMLElement).getAttribute("style")?.includes("background")
     );
     expect(codeLines.length).toBeGreaterThanOrEqual(2);
+    editor.destroy();
+  });
+
+  // ── Indented code blocks ──
+
+  it("renders indented code blocks with background styling", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue: "Text\n\n    indented code\n    second line",
+      livePreview: true
+    });
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("indented code");
+    expect(text).toContain("second line");
+    // Should have code background on content lines
+    const codeLines = Array.from(container.querySelectorAll(".cm-line")).filter(
+      (line) => (line as HTMLElement).getAttribute("style")?.includes("monospace")
+    );
+    expect(codeLines.length).toBeGreaterThanOrEqual(2);
+    editor.destroy();
+  });
+
+  // ── Footnotes ──
+
+  it("renders footnote references as superscript when GFM is enabled", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue: "Text with footnote[^1]\n\n[^1]: Definition text",
+      livePreview: true,
+      plugins: [createGfmPreset()]
+    });
+
+    const sup = container.querySelector("sup");
+    expect(sup).not.toBeNull();
+    expect(sup?.textContent).toBe("1");
+    editor.destroy();
+  });
+
+  // ── Autolinks ──
+
+  it("renders GFM autolinks as styled links", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue: "Visit https://example.com today",
+      livePreview: true,
+      plugins: [createGfmPreset()]
+    });
+
+    const linkEl = container.querySelector("[data-link-url]");
+    expect(linkEl).not.toBeNull();
+    expect(linkEl?.getAttribute("data-link-url")).toBe("https://example.com");
     editor.destroy();
   });
 

@@ -1,5 +1,5 @@
 import type { Extension } from "@codemirror/state";
-import type { Blockquote, Code, Delete, Heading, Image, InlineCode, Link, List, Root, Strong, Emphasis, Table, ThematicBreak } from "mdast";
+import type { Blockquote, Code, Definition, Delete, Emphasis, FootnoteDefinition, FootnoteReference, Heading, Image, InlineCode, Link, List, Root, Strong, Table, ThematicBreak } from "mdast";
 import type { Plugin } from "unified";
 
 export interface ParserLike {
@@ -9,8 +9,11 @@ export interface ParserLike {
 export type LivePreviewNode =
   | Blockquote
   | Code
+  | Definition
   | Delete
   | Emphasis
+  | FootnoteDefinition
+  | FootnoteReference
   | Heading
   | Image
   | InlineCode
@@ -49,6 +52,8 @@ export interface EditorConfig {
   parseDelayMs?: number;
   livePreview?: boolean | LivePreviewConfig;
   plugins?: NexusPlugin[];
+  theme?: import("./theme").NexusTheme;
+  locale?: Partial<import("./locale").NexusLocale>;
   onChange?: (doc: string, ast: Root) => void;
   onFocus?: () => void;
   onBlur?: () => void;
@@ -72,9 +77,19 @@ export interface EditorEventMap {
   slashMenuChange: (state: SlashMenuState) => void;
 }
 
+export interface TocEntry {
+  level: number;
+  text: string;
+  from: number;
+  to: number;
+}
+
 export interface EditorAPI {
   getDocument(): string;
   getAst(): Root;
+  getTableOfContents(): TocEntry[];
+  exportHTML(): string;
+  setTheme(theme: import("./theme").NexusTheme): void;
   getSelection(): { anchor: number; head: number };
   getSlashCommands(): SlashCommandDef[];
   uploadAsset(file: File): Promise<string | null>;

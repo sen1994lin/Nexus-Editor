@@ -23,10 +23,10 @@ function extractCellText(cell: any): string {
     .join("");
 }
 
-const GRIP_BG = "#e8e8e8";
-const GRIP_BG_HOVER = "#d0d0d0";
+const GRIP_BG = "var(--nexus-bg-muted)";
+const GRIP_BG_HOVER = "var(--nexus-border)";
 const SELECT_BG = "rgba(124, 108, 250, 0.12)";
-const SELECT_BORDER = "#7c6cfa";
+const SELECT_BORDER = "var(--nexus-accent)";
 const DRAG_HIGHLIGHT_BG = "rgba(124, 108, 250, 0.08)";
 
 export class EditableTableWidget extends WidgetType {
@@ -143,6 +143,8 @@ export class EditableTableWidget extends WidgetType {
 
     // ── Table ──
     const table = document.createElement("table");
+    table.setAttribute("role", "grid");
+    table.setAttribute("aria-label", "Editable table");
     table.style.cssText = "border-collapse:collapse;display:table;";
     if (rows.length === 0) { wrapper.appendChild(table); return wrapper; }
 
@@ -272,7 +274,7 @@ export class EditableTableWidget extends WidgetType {
     function clearDragHighlights(): void {
       table.querySelectorAll(".nexus-cell").forEach((el) => {
         const h = el as HTMLElement;
-        h.style.background = h.tagName === "TH" ? "#fafafa" : "";
+        h.style.background = h.tagName === "TH" ? "var(--nexus-bg-subtle)" : "";
       });
     }
 
@@ -313,7 +315,7 @@ export class EditableTableWidget extends WidgetType {
           if (rowIdx >= range.r1 && rowIdx <= range.r2 && colIdx >= range.c1 && colIdx <= range.c2) {
             h.style.background = SELECT_BG;
           } else {
-            h.style.background = h.tagName === "TH" ? "#fafafa" : "";
+            h.style.background = h.tagName === "TH" ? "var(--nexus-bg-subtle)" : "";
           }
         });
       });
@@ -335,6 +337,11 @@ export class EditableTableWidget extends WidgetType {
     }
 
     function clearRangeSelection(): void {
+      // Release editing lock if range was active (we locked it in mouseup)
+      if (rangeActive) {
+        self.editing = false;
+        tableEditingCount--;
+      }
       rangeStart = null;
       rangeEnd = null;
       isRangeSelecting = false;
@@ -342,7 +349,8 @@ export class EditableTableWidget extends WidgetType {
       rangeBorder.style.display = "none";
       table.querySelectorAll(".nexus-cell").forEach((el) => {
         const h = el as HTMLElement;
-        h.style.background = h.tagName === "TH" ? "#fafafa" : "";
+        h.style.background = h.tagName === "TH" ? "var(--nexus-bg-subtle)" : "";
+        h.removeAttribute("aria-selected");
       });
     }
 
@@ -365,7 +373,8 @@ export class EditableTableWidget extends WidgetType {
       selectedRow = -1;
       table.querySelectorAll(".nexus-cell").forEach((el) => {
         const h = el as HTMLElement;
-        h.style.background = h.tagName === "TH" ? "#fafafa" : "";
+        h.style.background = h.tagName === "TH" ? "var(--nexus-bg-subtle)" : "";
+        h.removeAttribute("aria-selected");
       });
       table.querySelectorAll(".nexus-col-grip").forEach((el) => {
         (el as HTMLElement).style.background = "";
@@ -581,7 +590,7 @@ export class EditableTableWidget extends WidgetType {
       rowGrip.style.cssText =
         "width:16px;min-width:16px;max-width:16px;padding:6px 2px;text-align:center;" +
         "cursor:" + (isHeader ? "default" : "grab") + ";user-select:none;border:none;" +
-        "border-right:1px solid #eee;vertical-align:middle;" +
+        "border-right:1px solid var(--nexus-border);vertical-align:middle;" +
         "opacity:0;transition:opacity .15s;";
 
       if (!isHeader) {
@@ -615,9 +624,9 @@ export class EditableTableWidget extends WidgetType {
         td.className = "nexus-cell";
         td.textContent = extractCellText(astCells[colIdx]);
         td.style.cssText =
-          "border-bottom:1px solid #eee;border-right:1px solid #eee;padding:8px 12px;" +
+          "border-bottom:1px solid var(--nexus-border);border-right:1px solid var(--nexus-border);padding:8px 12px;" +
           "text-align:left;outline:none;min-width:60px;vertical-align:top;cursor:text;";
-        if (isHeader) { td.style.fontWeight = "bold"; td.style.background = "#fafafa"; td.style.borderTop = "1px solid #eee"; }
+        if (isHeader) { td.style.fontWeight = "bold"; td.style.background = "var(--nexus-bg-subtle)"; td.style.borderTop = "1px solid var(--nexus-border)"; }
 
         // Cell interaction: single click = edit, drag = range select
         const cellRow = curRowIdx;
@@ -660,6 +669,9 @@ export class EditableTableWidget extends WidgetType {
             } else {
               // Multi-cell range selected — keep range visible, focus wrapper for key events
               rangeActive = true;
+              // Lock editing to prevent CM6 from rebuilding the widget and losing range state
+              self.editing = true;
+              tableEditingCount++;
               wrapper.focus({ preventScroll: true });
             }
           };
@@ -722,9 +734,9 @@ export class EditableTableWidget extends WidgetType {
     wrapper.appendChild(table);
 
     // ── "+" buttons ──
-    const btnCss = "position:absolute;width:20px;height:20px;border:1px solid #ddd;" +
-      "border-radius:50%;background:#fff;cursor:pointer;font-size:14px;line-height:1;" +
-      "display:flex;align-items:center;justify-content:center;color:#999;padding:0;" +
+    const btnCss = "position:absolute;width:20px;height:20px;border:1px solid var(--nexus-border-subtle);" +
+      "border-radius:50%;background:var(--nexus-bg);cursor:pointer;font-size:14px;line-height:1;" +
+      "display:flex;align-items:center;justify-content:center;color:var(--nexus-text-muted);padding:0;" +
       "opacity:0;transition:opacity .15s;z-index:1;";
 
     const addCol = document.createElement("button");
@@ -782,12 +794,25 @@ export class EditableTableWidget extends WidgetType {
     }
 
     wrapper.addEventListener("click", (e) => {
+      // Skip if a range drag just completed (this click is the tail of that drag)
+      if (rangeActive) return;
       if (!(e.target as HTMLElement).closest(".nexus-cell") &&
           !(e.target as HTMLElement).closest(".nexus-row-grip") &&
           !(e.target as HTMLElement).closest(".nexus-col-grip")) {
         clearSelection();
+        clearRangeSelection();
       }
     });
+
+    // Click outside table clears all selection
+    const onDocMouseDown = (e: MouseEvent): void => {
+      if (!wrapper.isConnected) { document.removeEventListener("mousedown", onDocMouseDown); return; }
+      if (!wrapper.contains(e.target as Node)) {
+        clearSelection();
+        clearRangeSelection();
+      }
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
 
     wrapper.addEventListener("keydown", (e) => {
       if (e.key === "Delete" || e.key === "Backspace") {
@@ -840,7 +865,7 @@ function showContextMenu(
   const menu = document.createElement("div");
   menu.className = "nexus-table-ctx";
   menu.style.cssText =
-    "position:fixed;z-index:9999;background:#fff;border:1px solid #ddd;border-radius:6px;" +
+    "position:fixed;z-index:9999;background:var(--nexus-bg);border:1px solid var(--nexus-border-subtle);border-radius:6px;" +
     "box-shadow:0 2px 8px rgba(0,0,0,.12);padding:4px 0;min-width:140px;font-size:13px;";
   menu.style.left = x + "px";
   menu.style.top = y + "px";
@@ -850,10 +875,10 @@ function showContextMenu(
     item.textContent = label;
     item.style.cssText = "padding:6px 16px;cursor:pointer;white-space:nowrap;";
     if (disabled) {
-      item.style.color = "#ccc";
+      item.style.color = "var(--nexus-text-faint)";
       item.style.cursor = "default";
     } else {
-      item.addEventListener("mouseenter", () => { item.style.background = "#f0f0f0"; });
+      item.addEventListener("mouseenter", () => { item.style.background = "var(--nexus-bg-muted)"; });
       item.addEventListener("mouseleave", () => { item.style.background = ""; });
       item.addEventListener("click", () => { menu.remove(); action(); });
     }
