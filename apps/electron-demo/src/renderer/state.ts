@@ -3,6 +3,9 @@ export interface AppState {
   content: string;
   dirty: boolean;
   error: string | null;
+  vaultPath: string | null;
+  vaultTree: VaultNode[];
+  activeFile: string | null;
 }
 
 export function createState(): AppState {
@@ -11,5 +14,8 @@ export function createState(): AppState {
     content: "",
     dirty: false,
     error: null,
+    vaultPath: null,
+    vaultTree: [],
+    activeFile: null,
   };
 }

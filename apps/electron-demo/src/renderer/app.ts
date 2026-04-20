@@ -3,16 +3,25 @@ import { createEditorShell, type EditorShell } from "./editor-shell";
 import { loadSettings, createSettingsPanel, type EditorSettings } from "./settings";
 import { createOutlinePanel, type OutlinePanel } from "./outline-panel";
 import { createSearchBar, type SearchBar } from "./search-bar";
+import { createVaultPanel, type VaultPanel } from "./vault-panel";
 
 const state: AppState = createState();
 let settings: EditorSettings = loadSettings();
 let shell: EditorShell;
 let outline: OutlinePanel;
 let searchBar: SearchBar;
+let vault: VaultPanel;
 
 function createAppToolbar(): HTMLElement {
   const toolbar = document.createElement("div");
   toolbar.className = "toolbar";
+
+  const vaultBtn = document.createElement("button");
+  vaultBtn.textContent = "Vault";
+  vaultBtn.title = "Open a folder as a vault";
+  vaultBtn.addEventListener("click", () => {
+    void vault.promptPickVault();
+  });
 
   const openBtn = document.createElement("button");
   openBtn.textContent = "Open";
@@ -28,6 +37,12 @@ function createAppToolbar(): HTMLElement {
 
   const spacer = document.createElement("div");
   spacer.style.flex = "1";
+
+  const vaultToggleBtn = document.createElement("button");
+  vaultToggleBtn.textContent = "\uD83D\uDCD1"; // 📑
+  vaultToggleBtn.title = "Toggle vault panel";
+  vaultToggleBtn.style.fontSize = "14px";
+  vaultToggleBtn.addEventListener("click", toggleVault);
 
   const outlineBtn = document.createElement("button");
   outlineBtn.textContent = "\u2630"; // ☰
@@ -47,7 +62,17 @@ function createAppToolbar(): HTMLElement {
   settingsBtn.style.fontSize = "16px";
   settingsBtn.addEventListener("click", handleSettings);
 
-  toolbar.append(openBtn, saveBtn, saveAsBtn, spacer, outlineBtn, searchBtn, settingsBtn);
+  toolbar.append(
+    vaultBtn,
+    openBtn,
+    saveBtn,
+    saveAsBtn,
+    spacer,
+    vaultToggleBtn,
+    outlineBtn,
+    searchBtn,
+    settingsBtn
+  );
   return toolbar;
 }
 
@@ -62,22 +87,33 @@ function renderStatus(): void {
   const el = document.getElementById("status-line");
   if (!el) return;
 
-  const pathLabel = state.filePath ?? "Untitled";
+  const pathLabel = state.activeFile ?? state.filePath ?? "Untitled";
   const dirtyMark = state.dirty ? " [modified]" : "";
   const stats = shell?.editor.getDocumentStats();
   const statsText = stats ? ` | ${stats.words} words, ${stats.lines} lines` : "";
+  const vaultLabel = state.vaultPath
+    ? ` | Vault: ${state.vaultPath.split(/[\\/]/).pop()}`
+    : "";
   const errorText = state.error ? ` — Error: ${state.error}` : "";
-  el.textContent = `${pathLabel}${dirtyMark}${statsText}${errorText}`;
+  el.textContent = `${pathLabel}${dirtyMark}${statsText}${vaultLabel}${errorText}`;
+}
+
+async function confirmDiscardIfDirty(): Promise<boolean> {
+  if (!state.dirty) return true;
+  return window.confirm("You have unsaved changes. Discard them and switch files?");
 }
 
 async function handleOpen(): Promise<void> {
   try {
     state.error = null;
+    if (!(await confirmDiscardIfDirty())) return;
     const result = await window.nexusDemo.openFile();
     if (!result) return;
 
     state.filePath = result.path;
+    state.activeFile = result.path;
     shell.loadDocument(result.content);
+    vault.setActiveFile(result.path);
   } catch (err) {
     state.error = err instanceof Error ? err.message : String(err);
   }
@@ -87,8 +123,13 @@ async function handleOpen(): Promise<void> {
 async function handleSave(): Promise<void> {
   try {
     state.error = null;
-    if (state.filePath) {
-      await window.nexusDemo.saveFile(state.filePath, state.content);
+    const targetPath = state.activeFile ?? state.filePath;
+    if (targetPath) {
+      if (state.vaultPath && targetPath.startsWith(state.vaultPath)) {
+        await window.nexusDemo.vault.write(targetPath, state.content);
+      } else {
+        await window.nexusDemo.saveFile(targetPath, state.content);
+      }
       state.dirty = false;
     } else {
       await handleSaveAs();
@@ -107,7 +148,9 @@ async function handleSaveAs(): Promise<void> {
     if (!result) return;
 
     state.filePath = result.path;
+    state.activeFile = result.path;
     state.dirty = false;
+    vault.setActiveFile(result.path);
   } catch (err) {
     state.error = err instanceof Error ? err.message : String(err);
   }
@@ -121,13 +164,49 @@ function handleSettings(): void {
   });
 }
 
-function toggleOutline(): void {
-  const panel = outline.element;
+function togglePanel(panel: HTMLElement, onShow?: () => void): void {
   if (panel.style.display === "none") {
     panel.style.display = "";
-    outline.update();
+    onShow?.();
   } else {
     panel.style.display = "none";
+  }
+}
+
+function toggleOutline(): void {
+  togglePanel(outline.element, () => outline.update());
+}
+
+function toggleVault(): void {
+  togglePanel(vault.element);
+}
+
+async function handleVaultFileOpen(filePath: string): Promise<void> {
+  try {
+    state.error = null;
+    if (!(await confirmDiscardIfDirty())) return;
+    const result = await window.nexusDemo.vault.read(filePath);
+    state.filePath = result.path;
+    state.activeFile = result.path;
+    shell.loadDocument(result.content);
+    vault.setActiveFile(result.path);
+  } catch (err) {
+    state.error = err instanceof Error ? err.message : String(err);
+  }
+  renderStatus();
+}
+
+async function tryRestoreLastVault(): Promise<void> {
+  try {
+    const last = await window.nexusDemo.vault.getLast();
+    if (last.lastVault) {
+      state.vaultPath = last.lastVault;
+      await vault.openVault(last.lastVault);
+      renderStatus();
+    }
+  } catch (err) {
+    // swallow — missing vault is a normal case
+    console.warn("Could not restore last vault:", err);
   }
 }
 
@@ -135,11 +214,9 @@ function boot(): void {
   const root = document.getElementById("app");
   if (!root) throw new Error("Missing #app element");
 
-  // Top bar
   const appToolbar = createAppToolbar();
   const statusLine = createStatusLine();
 
-  // Main area: outline sidebar + editor column
   const mainArea = document.createElement("div");
   mainArea.className = "main-area";
 
@@ -151,7 +228,6 @@ function boot(): void {
 
   root.append(appToolbar, mainArea, statusLine);
 
-  // Create editor first so outline/search can reference it
   shell = createEditorShell({
     container: editorContainer,
     state,
@@ -159,16 +235,33 @@ function boot(): void {
     onStateChange: renderStatus,
   });
 
-  // Outline panel (left sidebar)
-  outline = createOutlinePanel(shell.editor);
+  vault = createVaultPanel({
+    onOpenFile: (filePath) => {
+      void handleVaultFileOpen(filePath);
+    },
+    onError: (message) => {
+      state.error = message;
+      renderStatus();
+    },
+    onStatus: (_message) => {
+      renderStatus();
+    },
+  });
 
-  // Search bar (above editor)
+  // Keep state in sync when the vault panel picks a new vault.
+  const originalOpenVault = vault.openVault;
+  vault.openVault = async (nextPath: string) => {
+    await originalOpenVault(nextPath);
+    state.vaultPath = nextPath;
+    renderStatus();
+  };
+
+  outline = createOutlinePanel(shell.editor);
   searchBar = createSearchBar(shell.editor);
 
   editorColumn.append(searchBar.element, editorContainer);
-  mainArea.append(outline.element, editorColumn);
+  mainArea.append(vault.element, outline.element, editorColumn);
 
-  // Ctrl+F → open search
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "f") {
       e.preventDefault();
@@ -177,6 +270,7 @@ function boot(): void {
   });
 
   renderStatus();
+  void tryRestoreLastVault();
 }
 
 boot();

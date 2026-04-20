@@ -17,6 +17,45 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 var preload_exports = {};
 module.exports = __toCommonJS(preload_exports);
 var import_electron = require("electron");
+var vaultBridge = {
+  pick() {
+    return import_electron.ipcRenderer.invoke("vault:pick");
+  },
+  list(vaultPath) {
+    return import_electron.ipcRenderer.invoke("vault:list", vaultPath);
+  },
+  read(filePath) {
+    return import_electron.ipcRenderer.invoke("vault:read", filePath);
+  },
+  write(filePath, content) {
+    return import_electron.ipcRenderer.invoke("vault:write", filePath, content);
+  },
+  createFile(parentDir, name) {
+    return import_electron.ipcRenderer.invoke("vault:create-file", parentDir, name);
+  },
+  createFolder(parentDir, name) {
+    return import_electron.ipcRenderer.invoke("vault:create-folder", parentDir, name);
+  },
+  rename(oldPath, newName) {
+    return import_electron.ipcRenderer.invoke("vault:rename", oldPath, newName);
+  },
+  delete(targetPath) {
+    return import_electron.ipcRenderer.invoke("vault:delete", targetPath);
+  },
+  getLast() {
+    return import_electron.ipcRenderer.invoke("vault:get-last");
+  },
+  setLast(vaultPath) {
+    return import_electron.ipcRenderer.invoke("vault:set-last", vaultPath);
+  },
+  onChanged(cb) {
+    const listener = (_event, payload) => cb(payload);
+    import_electron.ipcRenderer.on("vault:changed", listener);
+    return () => {
+      import_electron.ipcRenderer.off("vault:changed", listener);
+    };
+  }
+};
 var bridge = {
   openFile() {
     return import_electron.ipcRenderer.invoke("demo:open-file");
@@ -26,6 +65,7 @@ var bridge = {
   },
   saveFileAs(content) {
     return import_electron.ipcRenderer.invoke("demo:save-file-as", content);
-  }
+  },
+  vault: vaultBridge
 };
 import_electron.contextBridge.exposeInMainWorld("nexusDemo", bridge);
