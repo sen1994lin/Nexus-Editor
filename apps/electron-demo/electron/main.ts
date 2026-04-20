@@ -1,7 +1,17 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from "electron";
 import { readFile, writeFile, readdir, mkdir, rename, stat } from "node:fs/promises";
 import { existsSync, watch, type FSWatcher } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+// Must be called before app ready — declares our custom scheme as privileged
+// so images served via nexus-vault:// pass fetch/<img> with credentials / CORS.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "nexus-vault",
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: true },
+  },
+]);
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -372,7 +382,28 @@ ipcMain.handle("vault:set-last", async (_event, vaultPath: string) => {
   return { ok: true };
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  // nexus-vault://vault/<rel> → read from activeVault/<rel>. Path is validated
+  // so requests cannot escape the vault (same rule as the IPC handlers).
+  protocol.handle("nexus-vault", async (request) => {
+    try {
+      if (!activeVault) return new Response("No active vault", { status: 404 });
+      const url = new URL(request.url);
+      const relPath = decodeURIComponent(url.pathname.replace(/^\/+/, ""));
+      if (!relPath) return new Response("Empty path", { status: 400 });
+      const abs = path.resolve(activeVault, relPath);
+      const rel = path.relative(activeVault, abs);
+      if (rel.startsWith("..") || path.isAbsolute(rel)) {
+        return new Response("Path escapes vault", { status: 403 });
+      }
+      if (!existsSync(abs)) return new Response("Not found", { status: 404 });
+      return net.fetch(pathToFileURL(abs).toString());
+    } catch (err) {
+      return new Response(String(err), { status: 500 });
+    }
+  });
+  createWindow();
+});
 
 app.on("window-all-closed", () => {
   stopWatcher();

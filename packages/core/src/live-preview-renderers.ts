@@ -208,13 +208,17 @@ export function createDefaultRenderer(context: LivePreviewRenderContext): HTMLEl
 export function renderLivePreviewNode(
   node: LivePreviewNode,
   source: string,
-  renderers: Partial<Record<LivePreviewNodeType, LivePreviewRenderer>>
+  renderers: Partial<Record<LivePreviewNodeType, LivePreviewRenderer>>,
+  from = 0,
+  to = 0
 ): HTMLElement {
   const context: LivePreviewRenderContext = {
     node,
     nodeType: node.type,
     source,
-    text: getText(node)
+    text: getText(node),
+    from,
+    to
   };
 
   return renderers[node.type]?.(context) ?? createDefaultRenderer(context);

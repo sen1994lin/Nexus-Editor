@@ -30,6 +30,10 @@ export interface LivePreviewRenderContext {
   nodeType: LivePreviewNodeType;
   source: string;
   text: string;
+  /** Absolute offset of the node's start in the document. */
+  from: number;
+  /** Absolute offset of the node's end in the document. */
+  to: number;
 }
 
 export type LivePreviewRenderer = (context: LivePreviewRenderContext) => HTMLElement;

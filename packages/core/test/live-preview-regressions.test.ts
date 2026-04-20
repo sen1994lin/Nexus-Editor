@@ -162,10 +162,12 @@ describe("live preview regressions", () => {
     editorB.destroy();
   });
 
-  // Guards against reintroducing cursor-conditional widget toggling on images.
-  // Switching between inline-preview (cursor on) and replace-widget (cursor off)
-  // changed vertical block height, drifting click resolution.
-  it("image widget stays present regardless of cursor position", () => {
+  // Image cursor-aware behavior:
+  //   * cursor OUT → replace widget (source hidden)
+  //   * cursor IN  → source visible (editable) AND a preview widget alongside,
+  //                  so the user can edit markdown and see the image simultaneously.
+  // Entry to edit mode is driven by the </> button in the custom renderer.
+  it("image widget-only when cursor outside; source + preview when inside", () => {
     const container = document.createElement("div");
     const editor = createEditor({
       container,
@@ -176,11 +178,19 @@ describe("live preview regressions", () => {
     editor.setSelection(0);
     const widgetOff = container.querySelector("[data-live-preview-image]");
     expect(widgetOff).not.toBeNull();
+    expect(container.textContent).not.toContain("![alt]");
 
-    // Position cursor inside the image markdown
+    // Cursor inside → source visible AND preview still rendered.
     editor.setSelection(10);
     const widgetOn = container.querySelector("[data-live-preview-image]");
     expect(widgetOn).not.toBeNull();
+    expect(container.textContent).toContain("![alt](https://example.com/img.png)");
+
+    // Move cursor back out → only widget, no source.
+    editor.setSelection(0);
+    const widgetBack = container.querySelector("[data-live-preview-image]");
+    expect(widgetBack).not.toBeNull();
+    expect(container.textContent).not.toContain("![alt]");
     editor.destroy();
   });
 });

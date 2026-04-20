@@ -30,6 +30,13 @@ var import_electron = require("electron");
 var import_promises = require("fs/promises");
 var import_node_fs = require("fs");
 var import_node_path = __toESM(require("path"));
+var import_node_url = require("url");
+import_electron.protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "nexus-vault",
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, bypassCSP: true }
+  }
+]);
 var mainWindow = null;
 var SUPPORTED_EXT = /* @__PURE__ */ new Set([".md", ".markdown", ".txt"]);
 var SKIP_DIRS = /* @__PURE__ */ new Set(["node_modules", ".git", ".svn", ".hg", ".DS_Store"]);
@@ -324,7 +331,26 @@ import_electron.ipcMain.handle("vault:set-last", async (_event, vaultPath) => {
   await writeVaultState({ lastVault: vaultPath, recents });
   return { ok: true };
 });
-import_electron.app.whenReady().then(createWindow);
+import_electron.app.whenReady().then(() => {
+  import_electron.protocol.handle("nexus-vault", async (request) => {
+    try {
+      if (!activeVault) return new Response("No active vault", { status: 404 });
+      const url = new URL(request.url);
+      const relPath = decodeURIComponent(url.pathname.replace(/^\/+/, ""));
+      if (!relPath) return new Response("Empty path", { status: 400 });
+      const abs = import_node_path.default.resolve(activeVault, relPath);
+      const rel = import_node_path.default.relative(activeVault, abs);
+      if (rel.startsWith("..") || import_node_path.default.isAbsolute(rel)) {
+        return new Response("Path escapes vault", { status: 403 });
+      }
+      if (!(0, import_node_fs.existsSync)(abs)) return new Response("Not found", { status: 404 });
+      return import_electron.net.fetch((0, import_node_url.pathToFileURL)(abs).toString());
+    } catch (err) {
+      return new Response(String(err), { status: 500 });
+    }
+  });
+  createWindow();
+});
 import_electron.app.on("window-all-closed", () => {
   stopWatcher();
   import_electron.app.quit();

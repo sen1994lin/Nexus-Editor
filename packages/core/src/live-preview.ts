@@ -720,13 +720,31 @@ function buildDecorations(
     } else if (range.node.type === "code" && !config.renderers.code) {
       buildCodeBlockDecorations(range as { from: number; to: number; node: Code; source: string }, selection, decos, viewRef);
     } else if (range.node.type === "image") {
-      // Always render as widget — cursor toggle between inline-preview and replace-widget
-      // caused vertical layout shifts that made click positions drift after selection change.
-      decos.push(
-        Decoration.replace({
-          widget: createWidget(renderLivePreviewNode(range.node, range.source, config.renderers))
-        }).range(range.from, range.to)
-      );
+      // Cursor-aware + preview-alongside:
+      //   * cursor OUT  → replace widget (source hidden).
+      //   * cursor IN   → source visible (editable) AND a block-widget preview
+      //                   appended right after the image's end offset.
+      // The "enter edit mode" trigger in practice is the </> button click in
+      // the custom renderer, which dispatches setSelection(range.from).
+      // swallowEvents=true so interactive chrome inside a custom image renderer
+      // isn't preempted by CM6's cursor-placement handler.
+      const cursorOnImage = selectionIntersects(range.from, range.to, selection, true);
+      if (!cursorOnImage) {
+        decos.push(
+          Decoration.replace({
+            widget: createWidget(renderLivePreviewNode(range.node, range.source, config.renderers, range.from, range.to), true)
+          }).range(range.from, range.to)
+        );
+      } else {
+        // Edit mode: keep source text visible; also render the image below.
+        decos.push(
+          Decoration.widget({
+            widget: createWidget(renderLivePreviewNode(range.node, range.source, config.renderers, range.from, range.to), true),
+            block: true,
+            side: 1,
+          }).range(range.to)
+        );
+      }
     } else if (range.node.type === "link" && !config.renderers.link) {
       const inlineStyle = getInlineMarkerStyle("link", range.source);
       if (inlineStyle) {
@@ -819,7 +837,7 @@ function buildDecorations(
         }
         decos.push(
           Decoration.replace({
-            widget: createWidget(renderLivePreviewNode(range.node, range.source, config.renderers), isBlock, heightHint),
+            widget: createWidget(renderLivePreviewNode(range.node, range.source, config.renderers, range.from, range.to), isBlock, heightHint),
             block: isBlock
           }).range(range.from, range.to)
         );

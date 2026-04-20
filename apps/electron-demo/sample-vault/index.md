@@ -23,9 +23,10 @@ show a long list.
 
 - [[Daily/2026-04-20]]
 
-## Diagrams
+## Diagrams & Media
 
 - [[mermaid-demo]] — 7 种 mermaid 图表 + 语法错误兜底演示
+- [[image-demo]] — 本地图片 + Obsidian 风格 `|width` + hover chrome + drag-resize
 
 ## Edge cases
 

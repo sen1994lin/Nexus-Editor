@@ -1,10 +1,63 @@
-import { createEditor, createWikilinksPlugin, type EditorAPI } from "@nexus/core";
+import {
+  createEditor,
+  createWikilinksPlugin,
+  type EditorAPI,
+  type LivePreviewRenderContext,
+} from "@nexus/core";
 import { createGfmPreset } from "@nexus/preset-gfm";
 import { createHistoryPlugin } from "@nexus/plugin-history";
 import { createToolbarPlugin, createToolbarUI, type ToolbarUI } from "@nexus/plugin-toolbar";
 import { createSearchPlugin } from "@nexus/plugin-search";
 import type { AppState } from "./state";
 import { type EditorSettings, settingsToTheme } from "./settings";
+
+// Parse Obsidian-style size specifier from the alt text: `alt|width` or
+// `alt|widthxheight`. Returns { alt, width, height } with the size stripped
+// from the label. Numbers only; non-numeric after `|` stays in the alt.
+function parseImageSize(raw: string): { alt: string; width?: number; height?: number } {
+  if (!raw) return { alt: "" };
+  const pipe = raw.lastIndexOf("|");
+  if (pipe < 0) return { alt: raw };
+  const size = raw.slice(pipe + 1).trim();
+  const wh = size.match(/^(\d+)(?:x(\d+))?$/);
+  if (!wh) return { alt: raw };
+  return {
+    alt: raw.slice(0, pipe).trim(),
+    width: Number(wh[1]),
+    height: wh[2] ? Number(wh[2]) : undefined,
+  };
+}
+
+// Rewrite relative image URLs to the custom nexus-vault:// scheme registered
+// in the main process. Absolute URLs (http, https, data, etc) pass through.
+function resolveImageSrc(
+  url: string,
+  activeFile: string | null,
+  vaultRoot: string | null
+): string {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(url) || url.startsWith("//")) return url;
+  if (!activeFile || !vaultRoot) return url;
+
+  const sep = activeFile.includes("\\") && !activeFile.includes("/") ? "\\" : "/";
+  const normActive = activeFile.replace(/\\/g, "/");
+  const normVault = vaultRoot.replace(/\\/g, "/").replace(/\/+$/, "");
+  const lastSlash = normActive.lastIndexOf("/");
+  const activeDir = lastSlash >= 0 ? normActive.slice(0, lastSlash) : "";
+  const joined = activeDir + "/" + url.replace(/\\/g, "/");
+
+  const parts: string[] = [];
+  for (const p of joined.split("/")) {
+    if (p === "" || p === ".") continue;
+    if (p === "..") parts.pop();
+    else parts.push(p);
+  }
+  const absNorm = (joined.startsWith("/") ? "/" : "") + parts.join("/");
+
+  if (absNorm !== normVault && !absNorm.startsWith(normVault + "/")) return url;
+  const rel = absNorm.slice(normVault.length + 1);
+  const encoded = rel.split("/").map(encodeURIComponent).join("/");
+  return `nexus-vault://vault/${encoded}`;
+}
 
 export interface EditorShellOptions {
   container: HTMLElement;
@@ -38,6 +91,10 @@ export function createEditorShell(options: EditorShellOptions): EditorShell {
     suggestWikilinks,
   } = options;
 
+  // Forward ref so the image renderer (built BEFORE createEditor returns)
+  // can dispatch selection changes through the editor API after it exists.
+  const editorRef: { current: EditorAPI | null } = { current: null };
+
   const wikilinksPlugin = createWikilinksPlugin({
     resolve: resolveWikilink ? (name) => resolveWikilink(name) : undefined,
     onNavigate: onWikilinkNavigate,
@@ -54,7 +111,176 @@ export function createEditorShell(options: EditorShellOptions): EditorShell {
       createSearchPlugin(),
       wikilinksPlugin,
     ],
-    livePreview: settings.livePreview,
+    livePreview: settings.livePreview
+      ? {
+          enabled: true,
+          renderers: {
+            image: (ctx: LivePreviewRenderContext) => {
+              const node = ctx.node as {
+                type: "image";
+                url: string;
+                alt?: string;
+                title?: string;
+              };
+              const nodeFrom = ctx.from;
+              const nodeTo = ctx.to;
+              const { alt, width, height } = parseImageSize(node.alt ?? "");
+
+              const wrapper = document.createElement("span");
+              wrapper.className = "nexus-image";
+              wrapper.style.cssText =
+                "display:inline-block;position:relative;vertical-align:top;max-width:100%;" +
+                "border:1px solid transparent;border-radius:6px;padding:2px;transition:border-color .15s;";
+              wrapper.setAttribute("data-live-preview-image", node.url);
+
+              const img = document.createElement("img");
+              img.src = resolveImageSrc(node.url, state.activeFile, state.vaultPath);
+              img.alt = alt;
+              if (node.title) img.title = node.title;
+              img.referrerPolicy = "no-referrer";
+              img.style.display = "block";
+              img.style.maxWidth = "100%";
+              img.style.height = "auto";
+              img.style.borderRadius = "4px";
+              if (typeof width === "number") img.style.width = width + "px";
+              if (typeof height === "number") img.style.height = height + "px";
+
+              // Top-right action: jump cursor to image source.
+              const srcBtn = document.createElement("button");
+              srcBtn.type = "button";
+              srcBtn.title = "View source";
+              srcBtn.setAttribute("aria-label", "View image markdown source");
+              srcBtn.textContent = "</>";
+              srcBtn.style.cssText = [
+                "position:absolute",
+                "top:6px",
+                "right:6px",
+                "padding:2px 6px",
+                "font-size:11px",
+                "font-family:ui-monospace,monospace",
+                "line-height:1.4",
+                "background:rgba(255,255,255,0.95)",
+                "border:1px solid var(--nexus-border-subtle,#ddd)",
+                "border-radius:4px",
+                "color:var(--nexus-text,#333)",
+                "cursor:pointer",
+                "opacity:0",
+                "z-index:2",
+                "user-select:none",
+                "transition:opacity .15s",
+                "box-shadow:0 1px 2px rgba(0,0,0,0.08)",
+              ].join(";") + ";";
+              srcBtn.addEventListener("mousedown", (e) => { e.stopPropagation(); }, true);
+              srcBtn.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const ed = editorRef.current;
+                if (!ed) return;
+                ed.setSelection(nodeFrom);
+                ed.focus();
+              });
+              // NOTE: clicks on the image body intentionally do NOT enter edit
+              // mode. Only the top-right </> button toggles source.
+
+              // Bottom-right resize handle — drag to resize; on mouseup writes
+              // back `|width` into the image's alt in markdown.
+              const resizeDot = document.createElement("span");
+              resizeDot.title = "Drag to resize";
+              resizeDot.style.cssText = [
+                "position:absolute",
+                "bottom:2px",
+                "right:2px",
+                "width:10px",
+                "height:10px",
+                "border-radius:50%",
+                "background:var(--nexus-accent,#7c6cf4)",
+                "opacity:0",
+                "z-index:2",
+                "cursor:nwse-resize",
+                "transition:opacity .15s",
+              ].join(";") + ";";
+
+              let dragging = false;
+              let startX = 0;
+              let startW = 0;
+              const onMove = (e: MouseEvent) => {
+                if (!dragging) return;
+                const newW = Math.max(40, Math.round(startW + (e.clientX - startX)));
+                img.style.width = newW + "px";
+                img.style.height = "auto";
+              };
+              const onUp = (e: MouseEvent) => {
+                if (!dragging) return;
+                dragging = false;
+                document.removeEventListener("mousemove", onMove);
+                document.removeEventListener("mouseup", onUp);
+                const finalW = Math.max(40, Math.round(startW + (e.clientX - startX)));
+                const ed = editorRef.current;
+                if (!ed) return;
+
+                const doc = ed.getDocument();
+                const src = doc.slice(nodeFrom, nodeTo);
+                const m = src.match(/^!\[([^\]]*)\](\([\s\S]*\))$/);
+                if (!m) return;
+                const rawAlt = m[1];
+                const pipe = rawAlt.lastIndexOf("|");
+                const hasSize = pipe >= 0 && /^\d+(x\d+)?$/.test(rawAlt.slice(pipe + 1).trim());
+                const pureAlt = hasSize ? rawAlt.slice(0, pipe).trim() : rawAlt;
+                const nextAlt = pureAlt ? `${pureAlt}|${finalW}` : `|${finalW}`;
+                const nextSrc = `![${nextAlt}]${m[2]}`;
+                if (nextSrc === src) return;
+
+                const before = doc.slice(0, nodeFrom);
+                const after = doc.slice(nodeTo);
+                ed.setDocument(before + nextSrc + after);
+                ed.setSelection(nodeFrom + nextSrc.length);
+              };
+              resizeDot.addEventListener("mousedown", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                dragging = true;
+                startX = e.clientX;
+                startW = img.getBoundingClientRect().width;
+                document.addEventListener("mousemove", onMove);
+                document.addEventListener("mouseup", onUp);
+              });
+
+              const showChrome = () => {
+                wrapper.style.borderColor = "var(--nexus-accent,#7c6cf4)";
+                srcBtn.style.opacity = "1";
+                resizeDot.style.opacity = "1";
+              };
+              const hideChrome = () => {
+                if (dragging) return;
+                wrapper.style.borderColor = "transparent";
+                srcBtn.style.opacity = "0";
+                resizeDot.style.opacity = "0";
+              };
+              wrapper.addEventListener("mouseenter", showChrome);
+              wrapper.addEventListener("mouseleave", hideChrome);
+
+              // Obsidian-style: no visible caption. alt goes on the img (native
+              // browser tooltip + a11y). Raw markdown source `![alt|size](url)`
+              // is what reveals on cursor-on-image or </> click.
+              if (alt) img.title = alt;
+
+              img.addEventListener("error", () => {
+                const err = document.createElement("span");
+                err.textContent = `⚠ image not found: ${node.url}`;
+                err.style.cssText =
+                  "display:block;padding:8px 12px;font-size:12px;color:var(--nexus-hl-deletion,#c33);" +
+                  "font-family:monospace;background:var(--nexus-bg-subtle);border-radius:4px;";
+                img.replaceWith(err);
+              });
+
+              wrapper.appendChild(img);
+              wrapper.appendChild(srcBtn);
+              wrapper.appendChild(resizeDot);
+              return wrapper;
+            },
+          },
+        }
+      : false,
     theme: settingsToTheme(settings),
     tabSize: settings.tabSize,
     direction: settings.direction,
@@ -70,6 +296,8 @@ export function createEditorShell(options: EditorShellOptions): EditorShell {
       onStateChange();
     },
   });
+
+  editorRef.current = editor;
 
   const toolbar = createToolbarUI(editor);
   container.insertBefore(toolbar.element, container.firstChild);
