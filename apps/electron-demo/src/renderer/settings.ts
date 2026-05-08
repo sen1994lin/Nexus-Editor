@@ -1,4 +1,4 @@
-import { lightTheme, darkTheme, type NexusTheme } from "@nexus/core";
+import { lightTheme, darkTheme, type NexusTheme } from "@floatboat/nexus-core";
 
 export interface EditorSettings {
   /** "light" | "dark" */

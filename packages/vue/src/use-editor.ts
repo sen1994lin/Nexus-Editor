@@ -1,4 +1,4 @@
-import { createEditor } from "@nexus/core";
+import { createEditor } from "@floatboat/nexus-core";
 import { onBeforeUnmount, onMounted, ref, shallowRef } from "vue";
 
 import type { UseEditorConfig, UseEditorResult } from "./types";

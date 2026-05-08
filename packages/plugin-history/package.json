@@ -1,7 +1,6 @@
 {
-  "name": "@nexus/plugin-history",
+  "name": "@floatboat/nexus-plugin-history",
   "version": "0.0.0",
-  "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -20,6 +19,10 @@
   "dependencies": {
     "@codemirror/commands": "^6.8.1",
     "@codemirror/view": "^6.36.1",
-    "@nexus/core": "workspace:*"
+    "@floatboat/nexus-core": "workspace:*"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

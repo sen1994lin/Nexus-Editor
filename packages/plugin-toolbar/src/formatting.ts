@@ -1,4 +1,4 @@
-import type { EditorAPI } from "@nexus/core";
+import type { EditorAPI } from "@floatboat/nexus-core";
 
 /** Get the current line containing the anchor position. */
 function getCurrentLine(doc: string, anchor: number): { lineStart: number; lineEnd: number; line: string } {

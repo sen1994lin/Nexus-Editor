@@ -1,9 +1,9 @@
-import { createEditor } from "@nexus/core";
+import { createEditor } from "@floatboat/nexus-core";
 import type { List, ListItem } from "mdast";
 import { describe, expect, it } from "vitest";
 import { createGfmPreset } from "../src/index";
 
-describe("@nexus/preset-gfm", () => {
+describe("@floatboat/nexus-preset-gfm", () => {
   it("adds table parsing support through the core plugin system", () => {
     const container = document.createElement("div");
     const editor = createEditor({

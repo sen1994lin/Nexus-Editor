@@ -1,4 +1,4 @@
-import { createEditor } from "@nexus/core";
+import { createEditor } from "@floatboat/nexus-core";
 import { useEffect, useRef, useState } from "react";
 
 import type { UseEditorConfig, UseEditorResult } from "./types";

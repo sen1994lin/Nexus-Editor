@@ -18,22 +18,22 @@
 
 | 包名 | 说明 |
 |---|---|
-| `@nexus/core` | 编辑器引擎 — CM6 状态机、AST 管道、实时预览、事件系统、Widget API |
-| `@nexus/react` | React 绑定 — `useEditor` Hook 和 `<Editor />` 组件 |
-| `@nexus/vue` | Vue 3 绑定 — `useEditor` 组合式函数 |
-| `@nexus/preset-gfm` | GitHub Flavored Markdown 预设（表格、删除线、任务列表） |
-| `@nexus/plugin-history` | 撤销/重做，支持 `Ctrl+Z` / `Ctrl+Shift+Z` |
-| `@nexus/plugin-search` | 搜索替换辅助函数 |
-| `@nexus/plugin-slash` | 斜杠命令检测与过滤 |
+| `@floatboat/nexus-core` | 编辑器引擎 — CM6 状态机、AST 管道、实时预览、事件系统、Widget API |
+| `@floatboat/nexus-react` | React 绑定 — `useEditor` Hook 和 `<Editor />` 组件 |
+| `@floatboat/nexus-vue` | Vue 3 绑定 — `useEditor` 组合式函数 |
+| `@floatboat/nexus-preset-gfm` | GitHub Flavored Markdown 预设（表格、删除线、任务列表） |
+| `@floatboat/nexus-plugin-history` | 撤销/重做，支持 `Ctrl+Z` / `Ctrl+Shift+Z` |
+| `@floatboat/nexus-plugin-search` | 搜索替换辅助函数 |
+| `@floatboat/nexus-plugin-slash` | 斜杠命令检测与过滤 |
 
 ## 快速开始
 
 ### 原生 DOM
 
 ```ts
-import { createEditor } from "@nexus/core";
-import { createGfmPreset } from "@nexus/preset-gfm";
-import { createHistoryPlugin } from "@nexus/plugin-history";
+import { createEditor } from "@floatboat/nexus-core";
+import { createGfmPreset } from "@floatboat/nexus-preset-gfm";
+import { createHistoryPlugin } from "@floatboat/nexus-plugin-history";
 
 const editor = createEditor({
   container: document.getElementById("editor")!,
@@ -50,8 +50,8 @@ const editor = createEditor({
 ### React
 
 ```tsx
-import { Editor } from "@nexus/react";
-import { createGfmPreset } from "@nexus/preset-gfm";
+import { Editor } from "@floatboat/nexus-react";
+import { createGfmPreset } from "@floatboat/nexus-preset-gfm";
 
 function App() {
   return (
@@ -69,8 +69,8 @@ function App() {
 
 ```vue
 <script setup>
-import { Editor } from "@nexus/vue";
-import { createGfmPreset } from "@nexus/preset-gfm";
+import { Editor } from "@floatboat/nexus-vue";
+import { createGfmPreset } from "@floatboat/nexus-preset-gfm";
 </script>
 
 <template>

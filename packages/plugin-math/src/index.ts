@@ -1,4 +1,4 @@
-import type { NexusPlugin } from "@nexus/core";
+import type { NexusPlugin } from "@floatboat/nexus-core";
 import katex from "katex";
 import remarkMath from "remark-math";
 

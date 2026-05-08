@@ -32,23 +32,23 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@nexus/core": path.resolve(
+      "@floatboat/nexus-core": path.resolve(
         __dirname,
         "../../packages/core/src/index.ts"
       ),
-      "@nexus/preset-gfm": path.resolve(
+      "@floatboat/nexus-preset-gfm": path.resolve(
         __dirname,
         "../../packages/preset-gfm/src/index.ts"
       ),
-      "@nexus/plugin-history": path.resolve(
+      "@floatboat/nexus-plugin-history": path.resolve(
         __dirname,
         "../../packages/plugin-history/src/index.ts"
       ),
-      "@nexus/plugin-toolbar": path.resolve(
+      "@floatboat/nexus-plugin-toolbar": path.resolve(
         __dirname,
         "../../packages/plugin-toolbar/src/index.ts"
       ),
-      "@nexus/plugin-search": path.resolve(
+      "@floatboat/nexus-plugin-search": path.resolve(
         __dirname,
         "../../packages/plugin-search/src/index.ts"
       ),

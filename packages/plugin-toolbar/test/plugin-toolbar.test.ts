@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createEditor } from "@nexus/core";
+import { createEditor } from "@floatboat/nexus-core";
 import {
   toggleBold,
   toggleItalic,

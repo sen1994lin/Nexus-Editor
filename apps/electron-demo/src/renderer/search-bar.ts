@@ -1,5 +1,5 @@
-import type { EditorAPI } from "@nexus/core";
-import { findSearchMatches, replaceAllMatches } from "@nexus/plugin-search";
+import type { EditorAPI } from "@floatboat/nexus-core";
+import { findSearchMatches, replaceAllMatches } from "@floatboat/nexus-plugin-search";
 
 export interface SearchBar {
   element: HTMLElement;

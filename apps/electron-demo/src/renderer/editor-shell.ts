@@ -3,11 +3,11 @@ import {
   createWikilinksPlugin,
   type EditorAPI,
   type LivePreviewRenderContext,
-} from "@nexus/core";
-import { createGfmPreset } from "@nexus/preset-gfm";
-import { createHistoryPlugin } from "@nexus/plugin-history";
-import { createToolbarPlugin, createToolbarUI, type ToolbarUI } from "@nexus/plugin-toolbar";
-import { createSearchPlugin } from "@nexus/plugin-search";
+} from "@floatboat/nexus-core";
+import { createGfmPreset } from "@floatboat/nexus-preset-gfm";
+import { createHistoryPlugin } from "@floatboat/nexus-plugin-history";
+import { createToolbarPlugin, createToolbarUI, type ToolbarUI } from "@floatboat/nexus-plugin-toolbar";
+import { createSearchPlugin } from "@floatboat/nexus-plugin-search";
 import type { AppState } from "./state";
 import { type EditorSettings, settingsToTheme } from "./settings";
 

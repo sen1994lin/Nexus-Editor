@@ -1,5 +1,5 @@
 {
-  "name": "@nexus/electron-demo",
+  "name": "@floatboat/nexus-electron-demo",
   "productName": "Nexus Editor",
   "version": "0.1.0",
   "private": true,
@@ -22,11 +22,11 @@
     "dist:dir": "pnpm run build && electron-builder --dir"
   },
   "dependencies": {
-    "@nexus/core": "workspace:*",
-    "@nexus/plugin-history": "workspace:*",
-    "@nexus/plugin-search": "workspace:*",
-    "@nexus/plugin-toolbar": "workspace:*",
-    "@nexus/preset-gfm": "workspace:*",
+    "@floatboat/nexus-core": "workspace:*",
+    "@floatboat/nexus-plugin-history": "workspace:*",
+    "@floatboat/nexus-plugin-search": "workspace:*",
+    "@floatboat/nexus-plugin-toolbar": "workspace:*",
+    "@floatboat/nexus-preset-gfm": "workspace:*",
     "highlight.js": "^11.11.0"
   },
   "devDependencies": {

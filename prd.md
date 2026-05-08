@@ -20,11 +20,11 @@
 
 | 包名 (Package)        | 职责描述                                                                       | 依赖的核心库                 |
 | :-------------------- | :----------------------------------------------------------------------------- | :--------------------------- |
-| `@nexus/core`         | **核心引擎层**。封装 CM6 实例、状态机、AST 解析管道以及核心的扩展/插件注册表。 | `codemirror`, `remark-parse` |
-| `@nexus/react`        | **React 绑定层**。提供 `useEditor` Hook 和无头 `<Editor />` 组件。             | `@nexus/core`, `react`       |
-| `@nexus/vue`          | **Vue 3 绑定层**。提供 `useEditor` Composable。                                | `@nexus/core`, `vue`         |
-| `@nexus/preset-gfm`   | **官方预设插件**。提供 GitHub Flavored Markdown 支持（表格、任务列表等）。     | `remark-gfm`                 |
-| `@nexus/plugin-slash` | **斜杠菜单逻辑**。提供输入 `/` 触发命令的底层位置计算和状态逻辑（不含 UI）。   | `@nexus/core`                |
+| `@floatboat/nexus-core`         | **核心引擎层**。封装 CM6 实例、状态机、AST 解析管道以及核心的扩展/插件注册表。 | `codemirror`, `remark-parse` |
+| `@floatboat/nexus-react`        | **React 绑定层**。提供 `useEditor` Hook 和无头 `<Editor />` 组件。             | `@floatboat/nexus-core`, `react`       |
+| `@floatboat/nexus-vue`          | **Vue 3 绑定层**。提供 `useEditor` Composable。                                | `@floatboat/nexus-core`, `vue`         |
+| `@floatboat/nexus-preset-gfm`   | **官方预设插件**。提供 GitHub Flavored Markdown 支持（表格、任务列表等）。     | `remark-gfm`                 |
+| `@floatboat/nexus-plugin-slash` | **斜杠菜单逻辑**。提供输入 `/` 触发命令的底层位置计算和状态逻辑（不含 UI）。   | `@floatboat/nexus-core`                |
 
 ### 2.2 核心数据流转 (Data Flow)
 
@@ -108,18 +108,18 @@ Markdown 渲染天然带有 XSS 风险，尤其是面向未知来源的内容。
 
 既然是 Headless，诸如“悬浮工具栏 (Bubble Menu)”、“斜杠菜单 (Slash Menu)”该如何实现？
 
-- `@nexus/core` 只负责计算**坐标（BoundingClientRect）**和**选区状态**。
+- `@floatboat/nexus-core` 只负责计算**坐标（BoundingClientRect）**和**选区状态**。
 - 向外暴露一个状态订阅：`editor.on('slashMenuChange', ({ isOpen, x, y, query }) => {...})`。
 - 宿主框架（如 React）接收到这些状态后，在最外层渲染自己的绝对定位组件，彻底摆脱编辑器内部 DOM 层级的束缚（完美解决弹窗被 `overflow: hidden` 截断的问题）。
 
 ## 5. 项目演进路线图 (Roadmap)
 
 - **Phase 1: 核心引擎 (MVP)**
-    - 完成 `@nexus/core` 与基于 CM6 的底层状态机。
+    - 完成 `@floatboat/nexus-core` 与基于 CM6 的底层状态机。
     - 打通 remark AST 解析与 Live Preview 基础装饰器。
     - 发布框架无关的 vanilla JS 版本。
 - **Phase 2: 框架拥抱与易用性**
-    - 发布 `@nexus/react`，提供无缝体验。
+    - 发布 `@floatboat/nexus-react`，提供无缝体验。
     - 实现核心官方插件：Gfm、History (撤销/重做)、Search (搜索替换)。
     - 发布完善的类型定义（TypeScript Definition）。
 - **Phase 3: 桌面端深度与高级能力**

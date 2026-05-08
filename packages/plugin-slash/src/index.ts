@@ -1,4 +1,4 @@
-import type { NexusPlugin, SlashCommandDef } from "@nexus/core";
+import type { NexusPlugin, SlashCommandDef } from "@floatboat/nexus-core";
 
 export interface SlashMatch {
   from: number;

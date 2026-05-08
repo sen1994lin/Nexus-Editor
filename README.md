@@ -18,22 +18,22 @@ A headless Markdown editor engine built on [CodeMirror 6](https://codemirror.net
 
 | Package | Description |
 |---|---|
-| `@nexus/core` | Editor engine — CM6 state, AST pipeline, live preview, events, widget API |
-| `@nexus/react` | React binding — `useEditor` hook and `<Editor />` component |
-| `@nexus/vue` | Vue 3 binding — `useEditor` composable |
-| `@nexus/preset-gfm` | GitHub Flavored Markdown preset (tables, strikethrough, task lists) |
-| `@nexus/plugin-history` | Undo/redo with `Ctrl+Z` / `Ctrl+Shift+Z` |
-| `@nexus/plugin-search` | Search and replace helpers |
-| `@nexus/plugin-slash` | Slash command detection and filtering |
+| `@floatboat/nexus-core` | Editor engine — CM6 state, AST pipeline, live preview, events, widget API |
+| `@floatboat/nexus-react` | React binding — `useEditor` hook and `<Editor />` component |
+| `@floatboat/nexus-vue` | Vue 3 binding — `useEditor` composable |
+| `@floatboat/nexus-preset-gfm` | GitHub Flavored Markdown preset (tables, strikethrough, task lists) |
+| `@floatboat/nexus-plugin-history` | Undo/redo with `Ctrl+Z` / `Ctrl+Shift+Z` |
+| `@floatboat/nexus-plugin-search` | Search and replace helpers |
+| `@floatboat/nexus-plugin-slash` | Slash command detection and filtering |
 
 ## Quick Start
 
 ### Vanilla (Plain DOM)
 
 ```ts
-import { createEditor } from "@nexus/core";
-import { createGfmPreset } from "@nexus/preset-gfm";
-import { createHistoryPlugin } from "@nexus/plugin-history";
+import { createEditor } from "@floatboat/nexus-core";
+import { createGfmPreset } from "@floatboat/nexus-preset-gfm";
+import { createHistoryPlugin } from "@floatboat/nexus-plugin-history";
 
 const editor = createEditor({
   container: document.getElementById("editor")!,
@@ -50,8 +50,8 @@ const editor = createEditor({
 ### React
 
 ```tsx
-import { Editor } from "@nexus/react";
-import { createGfmPreset } from "@nexus/preset-gfm";
+import { Editor } from "@floatboat/nexus-react";
+import { createGfmPreset } from "@floatboat/nexus-preset-gfm";
 
 function App() {
   return (
@@ -69,8 +69,8 @@ function App() {
 
 ```vue
 <script setup>
-import { Editor } from "@nexus/vue";
-import { createGfmPreset } from "@nexus/preset-gfm";
+import { Editor } from "@floatboat/nexus-vue";
+import { createGfmPreset } from "@floatboat/nexus-preset-gfm";
 </script>
 
 <template>

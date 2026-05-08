@@ -1,8 +1,8 @@
-import { createEditor } from "@nexus/core";
+import { createEditor } from "@floatboat/nexus-core";
 import { describe, expect, it } from "vitest";
 import { createHistoryPlugin } from "../src/index";
 
-describe("@nexus/plugin-history", () => {
+describe("@floatboat/nexus-plugin-history", () => {
   it("undoes the most recent document change through codemirror key handling", () => {
     const container = document.createElement("div");
     const editor = createEditor({

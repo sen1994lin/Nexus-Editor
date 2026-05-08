@@ -1,4 +1,4 @@
-import type { EditorAPI, NexusPlugin } from "@nexus/core";
+import type { EditorAPI, NexusPlugin } from "@floatboat/nexus-core";
 import { colorDecorationExtension } from "./color-decoration";
 
 export { toggleBlockquote, toggleOrderedList, toggleUnorderedList, insertCodeBlock, insertImage, insertHorizontalRule, applyTextColor, applyHighlight } from "./formatting";

@@ -1,7 +1,6 @@
 {
-  "name": "@nexus/vue",
+  "name": "@floatboat/nexus-vue",
   "version": "0.0.0",
-  "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,7 +17,11 @@
     "build": "tsup src/index.ts --format esm --dts --clean"
   },
   "dependencies": {
-    "@nexus/core": "workspace:*",
+    "@floatboat/nexus-core": "workspace:*",
     "vue": "^3.5.22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

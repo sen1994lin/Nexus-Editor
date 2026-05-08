@@ -50,19 +50,19 @@ importers:
 
   apps/electron-demo:
     dependencies:
-      '@nexus/core':
+      '@floatboat/nexus-core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@nexus/plugin-history':
+      '@floatboat/nexus-plugin-history':
         specifier: workspace:*
         version: link:../../packages/plugin-history
-      '@nexus/plugin-search':
+      '@floatboat/nexus-plugin-search':
         specifier: workspace:*
         version: link:../../packages/plugin-search
-      '@nexus/plugin-toolbar':
+      '@floatboat/nexus-plugin-toolbar':
         specifier: workspace:*
         version: link:../../packages/plugin-toolbar
-      '@nexus/preset-gfm':
+      '@floatboat/nexus-preset-gfm':
         specifier: workspace:*
         version: link:../../packages/preset-gfm
       highlight.js:
@@ -141,13 +141,13 @@ importers:
       '@codemirror/view':
         specifier: ^6.36.1
         version: 6.41.0
-      '@nexus/core':
+      '@floatboat/nexus-core':
         specifier: workspace:*
         version: link:../core
 
   packages/plugin-math:
     dependencies:
-      '@nexus/core':
+      '@floatboat/nexus-core':
         specifier: workspace:*
         version: link:../core
       katex:
@@ -159,13 +159,13 @@ importers:
 
   packages/plugin-search:
     dependencies:
-      '@nexus/core':
+      '@floatboat/nexus-core':
         specifier: workspace:*
         version: link:../core
 
   packages/plugin-slash:
     dependencies:
-      '@nexus/core':
+      '@floatboat/nexus-core':
         specifier: workspace:*
         version: link:../core
 
@@ -177,13 +177,13 @@ importers:
       '@codemirror/view':
         specifier: ^6.36.1
         version: 6.41.0
-      '@nexus/core':
+      '@floatboat/nexus-core':
         specifier: workspace:*
         version: link:../core
 
   packages/plugin-vim:
     dependencies:
-      '@nexus/core':
+      '@floatboat/nexus-core':
         specifier: workspace:*
         version: link:../core
       '@replit/codemirror-vim':
@@ -192,7 +192,7 @@ importers:
 
   packages/preset-gfm:
     dependencies:
-      '@nexus/core':
+      '@floatboat/nexus-core':
         specifier: workspace:*
         version: link:../core
       remark-gfm:
@@ -201,7 +201,7 @@ importers:
 
   packages/react:
     dependencies:
-      '@nexus/core':
+      '@floatboat/nexus-core':
         specifier: workspace:*
         version: link:../core
       react:
@@ -210,7 +210,7 @@ importers:
 
   packages/vue:
     dependencies:
-      '@nexus/core':
+      '@floatboat/nexus-core':
         specifier: workspace:*
         version: link:../core
       vue:

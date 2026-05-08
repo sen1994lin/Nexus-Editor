@@ -1,4 +1,4 @@
-import type { NexusPlugin } from "@nexus/core";
+import type { NexusPlugin } from "@floatboat/nexus-core";
 
 export interface SearchMatch {
   from: number;

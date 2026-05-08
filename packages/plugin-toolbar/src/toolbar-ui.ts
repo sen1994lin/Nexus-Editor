@@ -1,4 +1,4 @@
-import type { EditorAPI } from "@nexus/core";
+import type { EditorAPI } from "@floatboat/nexus-core";
 
 import {
   toggleBold,

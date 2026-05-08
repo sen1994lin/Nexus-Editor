@@ -1,7 +1,6 @@
 {
-  "name": "@nexus/preset-gfm",
+  "name": "@floatboat/nexus-preset-gfm",
   "version": "0.0.0",
-  "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,7 +17,11 @@
     "build": "tsup src/index.ts --format esm --dts --clean"
   },
   "dependencies": {
-    "@nexus/core": "workspace:*",
+    "@floatboat/nexus-core": "workspace:*",
     "remark-gfm": "^4.0.1"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

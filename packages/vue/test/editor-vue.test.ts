@@ -3,7 +3,7 @@ import { defineComponent, h, nextTick, onMounted } from "vue";
 import { describe, expect, it } from "vitest";
 import { Editor, useEditor } from "../src/index";
 
-describe("@nexus/vue", () => {
+describe("@floatboat/nexus-vue", () => {
   it("renders an editor into the provided container through the Editor component", async () => {
     const wrapper = mount(Editor, {
       props: {

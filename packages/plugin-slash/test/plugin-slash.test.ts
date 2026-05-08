@@ -6,7 +6,7 @@ import {
   getSlashMatch
 } from "../src/index";
 
-describe("@nexus/plugin-slash", () => {
+describe("@floatboat/nexus-plugin-slash", () => {
   it("detects a slash query at the cursor position", () => {
     const doc = "Before\n/hea";
 

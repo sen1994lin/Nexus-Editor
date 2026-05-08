@@ -1,7 +1,6 @@
 {
-  "name": "@nexus/plugin-toolbar",
+  "name": "@floatboat/nexus-plugin-toolbar",
   "version": "0.0.0",
-  "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -11,13 +10,19 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean"
   },
   "dependencies": {
-    "@nexus/core": "workspace:*",
+    "@floatboat/nexus-core": "workspace:*",
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.36.1"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

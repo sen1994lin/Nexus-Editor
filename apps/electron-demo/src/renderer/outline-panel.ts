@@ -1,4 +1,4 @@
-import type { EditorAPI, TocEntry } from "@nexus/core";
+import type { EditorAPI, TocEntry } from "@floatboat/nexus-core";
 
 export interface OutlinePanel {
   element: HTMLElement;

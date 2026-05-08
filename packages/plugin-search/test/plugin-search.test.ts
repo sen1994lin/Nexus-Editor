@@ -5,7 +5,7 @@ import {
   replaceAllMatches
 } from "../src/index";
 
-describe("@nexus/plugin-search", () => {
+describe("@floatboat/nexus-plugin-search", () => {
   it("finds all case-insensitive matches in a document", () => {
     expect(findSearchMatches("Hello hello HELLO", "hello")).toEqual([
       { from: 0, to: 5, text: "Hello" },

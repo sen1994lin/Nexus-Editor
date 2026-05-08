@@ -1,6 +1,6 @@
 # Mermaid Diagram Demo
 
-这个文档用来验证 `@nexus/core` 的 mermaid 渲染能力。光标离开代码块就会看到渲染好的图；
+这个文档用来验证 `@floatboat/nexus-core` 的 mermaid 渲染能力。光标离开代码块就会看到渲染好的图；
 点右上角的 ✎ 图标可以进入编辑模式；光标再离开就会自动回到渲染态。
 
 ## 1. Flowchart — 简单流程图

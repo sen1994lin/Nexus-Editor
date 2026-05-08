@@ -1,4 +1,4 @@
-import { scanWikiLinks, type WikiLinkMatch } from "@nexus/core";
+import { scanWikiLinks, type WikiLinkMatch } from "@floatboat/nexus-core";
 
 /** Prefer requestIdleCallback for yielding; fall back to a macrotask otherwise. */
 function yieldToIdle(): Promise<void> {

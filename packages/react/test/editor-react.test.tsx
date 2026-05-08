@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { describe, expect, it } from "vitest";
 import { Editor, useEditor } from "../src/index";
 
-describe("@nexus/react", () => {
+describe("@floatboat/nexus-react", () => {
   it("renders an editor into the provided container through the Editor component", () => {
     const { container, unmount } = render(<Editor initialValue="# Hello" />);
 

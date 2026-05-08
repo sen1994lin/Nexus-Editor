@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createEditor, type EditorAPI } from "@nexus/core";
+import { createEditor, type EditorAPI } from "@floatboat/nexus-core";
 import { createVimPlugin } from "../src/index";
 
 describe("plugin-vim", () => {
