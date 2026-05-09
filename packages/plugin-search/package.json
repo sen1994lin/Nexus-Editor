@@ -1,6 +1,6 @@
 {
   "name": "@floatboat/nexus-plugin-search",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -17,6 +17,8 @@
     "build": "tsup src/index.ts --format esm --dts --clean"
   },
   "dependencies": {
+    "@codemirror/search": "^6.6.0",
+    "@codemirror/view": "^6.41.0",
     "@floatboat/nexus-core": "workspace:*"
   },
   "publishConfig": {

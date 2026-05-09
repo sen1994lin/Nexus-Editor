@@ -7,6 +7,7 @@
 - [x] 1.3 Render footnotes `[^1]` / `[^1]: definition`
 - [x] 1.4 Render GFM autolinks as clickable links
 - [x] 1.5 Support indented code blocks (4-space indent)
+- [x] 1.6 Provide a functional search panel/keymap in `@floatboat/nexus-plugin-search`
 
 ## Phase 2: P1 — Advanced Editing
 

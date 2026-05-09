@@ -86,6 +86,8 @@ export interface EditorConfig {
   direction?: "ltr" | "rtl";
   /** Show indentation guide lines. Default: false */
   indentGuides?: boolean;
+  /** Prevent user edits while preserving selection and scrolling. Default: false */
+  readOnly?: boolean;
   onChange?: (doc: string, ast: Root) => void;
   onFocus?: () => void;
   onBlur?: () => void;

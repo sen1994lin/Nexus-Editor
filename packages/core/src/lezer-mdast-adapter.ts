@@ -145,6 +145,85 @@ function emitInline(source: Source, parent: SyntaxNode): PhrasingContent[] {
   return out;
 }
 
+function isEscapedPipe(text: string, index: number): boolean {
+  let slashCount = 0;
+  for (let i = index - 1; i >= 0 && text[i] === "\\"; i--) slashCount++;
+  return slashCount % 2 === 1;
+}
+
+function trimTableCellRange(
+  line: string,
+  lineFrom: number,
+  start: number,
+  end: number
+): { from: number; to: number } {
+  while (start < end && /[ \t]/.test(line[start])) start++;
+  while (end > start && /[ \t]/.test(line[end - 1])) end--;
+  return { from: lineFrom + start, to: lineFrom + end };
+}
+
+function tableCellContentRanges(source: Source, from: number, to: number): Array<{ from: number; to: number }> {
+  const line = readSlice(source, from, to);
+  const pipes: number[] = [];
+
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === "|" && !isEscapedPipe(line, i)) pipes.push(i);
+  }
+  if (pipes.length === 0) return [];
+
+  const hasLeadingPipe = line.slice(0, pipes[0]).trim() === "";
+  const hasTrailingPipe = line.slice(pipes[pipes.length - 1] + 1).trim() === "";
+  const delimiters = hasLeadingPipe ? pipes.slice(1) : pipes;
+  const ranges: Array<{ from: number; to: number }> = [];
+  let cellStart = hasLeadingPipe ? pipes[0] + 1 : 0;
+
+  for (const pipe of delimiters) {
+    ranges.push(trimTableCellRange(line, from, cellStart, pipe));
+    cellStart = pipe + 1;
+  }
+
+  if (!hasTrailingPipe) {
+    ranges.push(trimTableCellRange(line, from, cellStart, line.length));
+  }
+
+  return ranges;
+}
+
+function adaptTableRowCells(source: Source, row: SyntaxNode): TableCell[] {
+  const syntaxCells: SyntaxNode[] = [];
+  for (let cell = row.firstChild; cell; cell = cell.nextSibling) {
+    if (cell.name === "TableCell") syntaxCells.push(cell);
+  }
+
+  const ranges = tableCellContentRanges(source, row.from, row.to);
+  if (ranges.length === 0) {
+    return syntaxCells.map((cell) => ({
+      type: "tableCell",
+      children: emitInline(source, cell) as TableCell["children"],
+      position: position(cell.from, cell.to),
+    }));
+  }
+
+  const used = new Set<SyntaxNode>();
+  return ranges.map((range) => {
+    const syntaxCell = syntaxCells.find((cell) => !used.has(cell) && cell.from >= range.from && cell.to <= range.to);
+    if (syntaxCell) {
+      used.add(syntaxCell);
+      return {
+        type: "tableCell",
+        children: emitInline(source, syntaxCell) as TableCell["children"],
+        position: position(syntaxCell.from, syntaxCell.to),
+      };
+    }
+
+    return {
+      type: "tableCell",
+      children: [],
+      position: position(range.from, range.to),
+    };
+  });
+}
+
 // Lezer marker nodes carry the literal delimiter characters (`**`, backtick,
 // `[`, `]`, …) and must be skipped — emitting them as text would surface raw
 // markdown syntax inside the rendered preview.
@@ -360,15 +439,7 @@ function adaptTable(source: Source, node: SyntaxNode): Table {
   const rows: TableRow[] = [];
   for (let c = node.firstChild; c; c = c.nextSibling) {
     if (c.name === "TableHeader" || c.name === "TableRow") {
-      const cells: TableCell[] = [];
-      for (let cell = c.firstChild; cell; cell = cell.nextSibling) {
-        if (cell.name !== "TableCell") continue;
-        cells.push({
-          type: "tableCell",
-          children: emitInline(source, cell) as TableCell["children"],
-          position: position(cell.from, cell.to),
-        });
-      }
+      const cells = adaptTableRowCells(source, c);
       rows.push({
         type: "tableRow",
         children: cells,

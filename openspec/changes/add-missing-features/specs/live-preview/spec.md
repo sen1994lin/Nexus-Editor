@@ -2,9 +2,9 @@
 
 ## ADDED Requirements
 
-### The system SHALL support nested inline formatting
+### Requirement: support nested inline formatting
 
-Nested markdown formatting like `***bold italic***` or `**_mixed_**` shall render with combined styles (bold + italic) and correctly detect marker boundaries from AST nesting depth.
+Nested markdown formatting like `***bold italic***` or `**_mixed_**` SHALL render with combined styles (bold + italic) and correctly detect marker boundaries from AST nesting depth.
 
 #### Scenario: Nested bold-italic renders correctly
 - **WHEN** document contains `***text***`
@@ -17,9 +17,9 @@ Nested markdown formatting like `***bold italic***` or `**_mixed_**` shall rende
 - **AND** the inner italic markers `_` SHALL be hidden
 - **AND** the text SHALL have both bold and italic styles
 
-### The system SHALL render footnote references and definitions
+### Requirement: render footnote references and definitions
 
-GFM footnote syntax `[^1]` and `[^1]: text` shall be rendered as superscript numbers and bottom-of-document definitions respectively.
+GFM footnote syntax `[^1]` and `[^1]: text` SHALL be rendered as superscript numbers and bottom-of-document definitions respectively.
 
 #### Scenario: Footnote reference renders as superscript
 - **WHEN** document contains `text[^1]`
@@ -29,7 +29,7 @@ GFM footnote syntax `[^1]` and `[^1]: text` shall be rendered as superscript num
 - **WHEN** document contains `[^1]: definition text`
 - **THEN** it SHALL be rendered as a small-text definition block
 
-### The system SHALL render GFM autolinks
+### Requirement: render GFM autolinks
 
 Bare URLs recognized by remark-gfm SHALL be rendered as clickable links with the same styling as `[text](url)` links.
 
@@ -37,7 +37,7 @@ Bare URLs recognized by remark-gfm SHALL be rendered as clickable links with the
 - **WHEN** document contains `https://example.com`
 - **THEN** the URL SHALL be rendered with link styling (blue, underline)
 
-### The system SHALL support Ctrl+Click on mark-decorated links
+### Requirement: support Ctrl+Click on mark-decorated links
 
 Links rendered via mark decorations (not widget replacement) SHALL support Ctrl+Click to open in a new tab.
 
@@ -45,7 +45,7 @@ Links rendered via mark decorations (not widget replacement) SHALL support Ctrl+
 - **WHEN** user Ctrl+Clicks on a mark-decorated link
 - **THEN** the link URL SHALL open in a new browser tab
 
-### The system SHALL support indented code blocks
+### Requirement: support indented code blocks
 
 Code blocks created with 4-space indentation (no fences) SHALL receive the same styling as fenced code blocks (background, monospace font) without syntax highlighting or language label.
 
@@ -53,7 +53,7 @@ Code blocks created with 4-space indentation (no fences) SHALL receive the same 
 - **WHEN** document contains a line indented with 4 spaces
 - **THEN** the line SHALL have code block background styling
 
-### The system SHALL support code block and heading folding
+### Requirement: support code block and heading folding
 
 Users SHALL be able to collapse/expand code blocks and heading sections.
 
@@ -65,7 +65,7 @@ Users SHALL be able to collapse/expand code blocks and heading sections.
 - **WHEN** user clicks the fold indicator on a heading
 - **THEN** content below the heading until the next same-or-higher level heading SHALL be hidden
 
-### The system SHALL auto-continue markdown structures on Enter
+### Requirement: auto-continue markdown structures on Enter
 
 Pressing Enter inside list items, blockquotes, and ordered lists SHALL insert the appropriate prefix on the new line.
 
@@ -81,7 +81,7 @@ Pressing Enter inside list items, blockquotes, and ordered lists SHALL insert th
 - **WHEN** cursor is at end of a `> text` line and Enter is pressed
 - **THEN** a new line with `> ` prefix SHALL be inserted
 
-### The system SHALL support link and image hover previews
+### Requirement: support link and image hover previews
 
 Hovering over a rendered link SHALL show a tooltip with the full URL. Hovering over an image reference SHALL show a small thumbnail.
 

@@ -1,5 +1,5 @@
 import { type EditorState, StateField, type Extension, type Range, type SelectionRange, type Transaction } from "@codemirror/state";
-import { Decoration, type DecorationSet, EditorView, WidgetType } from "@codemirror/view";
+import { Decoration, type DecorationSet, EditorView, ViewPlugin, WidgetType } from "@codemirror/view";
 import type { Code, FootnoteDefinition, FootnoteReference, Heading, List, Root, Table } from "mdast";
 
 import type { CodeHighlightToken } from "./types";
@@ -1019,9 +1019,21 @@ export function createLivePreviewExtension(
     }
   });
 
-  const viewCapture = EditorView.updateListener.of((update) => {
-    viewRef.current = update.view;
-  });
+  const viewCapture = ViewPlugin.fromClass(
+    class {
+      constructor(readonly view: EditorView) {
+        viewRef.current = view;
+      }
+
+      update(): void {
+        viewRef.current = this.view;
+      }
+
+      destroy(): void {
+        if (viewRef.current === this.view) viewRef.current = null;
+      }
+    }
+  );
 
   // Click to navigate links; arrow-key into link to edit
   const linkHandler = EditorView.domEventHandlers({

@@ -141,6 +141,37 @@ export class EditableTableWidget extends WidgetType {
     let draggingRow = -1;   // which row is being dragged
     let dropTargetCol = -1;
     let dropTargetRow = -1;
+    const editingLocks = {
+      focus: false,
+      range: false,
+      drag: false,
+    };
+
+    function hasEditingLocks(): boolean {
+      return editingLocks.focus || editingLocks.range || editingLocks.drag;
+    }
+
+    function acquireEditingLock(lock: keyof typeof editingLocks): void {
+      if (editingLocks[lock]) return;
+      editingLocks[lock] = true;
+      self.editing = true;
+      tableEditingCount++;
+    }
+
+    function releaseEditingLock(lock: keyof typeof editingLocks): void {
+      if (!editingLocks[lock]) return;
+      editingLocks[lock] = false;
+      tableEditingCount = Math.max(0, tableEditingCount - 1);
+      self.editing = hasEditingLocks();
+    }
+
+    function blurActiveCellForDrag(): void {
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement) || !wrapper.contains(active) || !active.classList.contains("nexus-cell")) return;
+      active.blur();
+      releaseEditingLock("focus");
+      active.contentEditable = "false";
+    }
 
     // ── Root wrapper ──
     const wrapper = document.createElement("div");
@@ -348,8 +379,7 @@ export class EditableTableWidget extends WidgetType {
     function clearRangeSelection(): void {
       // Release editing lock if range was active (we locked it in mouseup)
       if (rangeActive) {
-        self.editing = false;
-        tableEditingCount--;
+        releaseEditingLock("range");
       }
       rangeStart = null;
       rangeEnd = null;
@@ -494,8 +524,7 @@ export class EditableTableWidget extends WidgetType {
       document.body.style.userSelect = "";
 
       // Release editing lock BEFORE dispatch so the resulting update rebuilds widget
-      self.editing = false;
-      tableEditingCount--;
+      releaseEditingLock("drag");
 
       // Now dispatch the move — this triggers a full decoration rebuild with new source
       if (movedCol) self.moveColumn(savedDragCol, savedDropCol);
@@ -506,8 +535,10 @@ export class EditableTableWidget extends WidgetType {
       draggingCol = colIdx;
       draggingRow = -1;
       // Lock editing to prevent CM6 from recreating widget DOM mid-drag
-      self.editing = true;
-      tableEditingCount++;
+      acquireEditingLock("drag");
+      blurActiveCellForDrag();
+      clearRangeSelection();
+      clearSelection();
       // Highlight source column
       getColumnCells(colIdx).forEach((el) => { el.style.background = DRAG_HIGHLIGHT_BG; });
       // Hide grip row, show floating pill instead
@@ -525,8 +556,10 @@ export class EditableTableWidget extends WidgetType {
       draggingRow = rowIdx;
       draggingCol = -1;
       // Lock editing to prevent CM6 from recreating widget DOM mid-drag
-      self.editing = true;
-      tableEditingCount++;
+      acquireEditingLock("drag");
+      blurActiveCellForDrag();
+      clearRangeSelection();
+      clearSelection();
       // Highlight source row
       const trs = Array.from(table.querySelectorAll("tr")).filter((_, i) => i > 0);
       if (trs[rowIdx]) {
@@ -679,8 +712,7 @@ export class EditableTableWidget extends WidgetType {
               // Multi-cell range selected — keep range visible, focus wrapper for key events
               rangeActive = true;
               // Lock editing to prevent CM6 from rebuilding the widget and losing range state
-              self.editing = true;
-              tableEditingCount++;
+              acquireEditingLock("range");
               wrapper.focus({ preventScroll: true });
             }
           };
@@ -688,13 +720,9 @@ export class EditableTableWidget extends WidgetType {
           document.addEventListener("mouseup", onCellMouseUp);
         });
 
-        td.addEventListener("focus", () => { self.editing = true; tableEditingCount++; clearRangeSelection(); });
+        td.addEventListener("focus", () => { acquireEditingLock("focus"); clearRangeSelection(); });
         td.addEventListener("blur", () => {
-          // Don't clear editing lock if a grip drag is active
-          if (draggingCol < 0 && draggingRow < 0) {
-            self.editing = false;
-            tableEditingCount--;
-          }
+          releaseEditingLock("focus");
           td.contentEditable = "false";
         });
 

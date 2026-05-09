@@ -2,7 +2,7 @@
 
 ## ADDED Requirements
 
-### The system SHALL provide an internationalization framework
+### Requirement: provide an internationalization framework
 
 All user-visible strings SHALL be configurable via a locale object. Built-in `en` and `zh` locales SHALL be provided.
 
@@ -19,7 +19,7 @@ All user-visible strings SHALL be configurable via a locale object. Built-in `en
 - **THEN** specified strings SHALL override defaults
 - **AND** unspecified strings SHALL fall back to English
 
-### The system SHALL provide a table of contents extraction API
+### Requirement: provide a table of contents extraction API
 
 `editor.getTableOfContents()` SHALL return an array of heading entries with level, text, and document positions.
 
@@ -32,7 +32,7 @@ All user-visible strings SHALL be configurable via a locale object. Built-in `en
 - **WHEN** document has no headings
 - **THEN** `getTableOfContents()` SHALL return an empty array
 
-### The system SHALL provide markdown-to-HTML export
+### Requirement: provide markdown-to-HTML export
 
 `editor.exportHTML()` SHALL convert the current document to semantic HTML with syntax-highlighted code blocks.
 
@@ -44,7 +44,7 @@ All user-visible strings SHALL be configurable via a locale object. Built-in `en
 - **WHEN** document contains a fenced code block with language
 - **THEN** exported HTML SHALL include syntax-highlighted code
 
-### The system SHALL provide a runtime theme switching API
+### Requirement: provide a runtime theme switching API
 
 `editor.setTheme(theme)` SHALL update the editor's visual theme without recreating the editor instance.
 

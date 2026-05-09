@@ -29,6 +29,16 @@ describe("createEditor", () => {
     expect(container.querySelector(".cm-editor")).toBeNull();
   });
 
+  it("can create a read-only editor without host-provided CodeMirror extensions", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({ container, initialValue: "# Hello", readOnly: true });
+    const content = container.querySelector<HTMLElement>(".cm-content");
+
+    expect(content?.getAttribute("contenteditable")).toBe("false");
+
+    editor.destroy();
+  });
+
   it("emits change, focus, and blur hooks with canonical document values", () => {
     const container = document.createElement("div");
     const events: string[] = [];

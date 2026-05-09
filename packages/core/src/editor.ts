@@ -241,6 +241,9 @@ export function createEditor(config: EditorConfig): EditorAPI {
   const tabSizeExt = config.tabSize && config.tabSize !== 4
     ? EditorState.tabSize.of(config.tabSize)
     : [];
+  const readOnlyExt = config.readOnly
+    ? [EditorState.readOnly.of(true), EditorView.editable.of(false)]
+    : [];
   const directionExt = config.direction === "rtl"
     ? EditorView.contentAttributes.of({ dir: "rtl" })
     : [];
@@ -319,6 +322,7 @@ export function createEditor(config: EditorConfig): EditorAPI {
         lineNumbers(),
         themeExt.extension,
         tabSizeExt,
+        readOnlyExt,
         directionExt,
         indentGuidesExt,
         markdownKeymap(),

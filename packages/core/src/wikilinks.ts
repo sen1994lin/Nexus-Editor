@@ -61,6 +61,8 @@ export interface WikilinksOptions {
   onNavigate?: (target: string, opts: WikiLinkNavigateOptions) => void;
   /** Return candidates (basenames or targets) for autocomplete after `[[`. */
   suggest?: (query: string) => string[] | Promise<string[]>;
+  /** Return true for host-specific double-bracket tokens that should stay literal. */
+  ignore?: (target: string) => boolean;
 }
 
 // Must disallow: nested `[`/`]`, pipes in target, newlines.
@@ -135,13 +137,15 @@ const UNRESOLVED_STYLE =
 function buildWikiLinkDecorations(
   doc: string,
   selectionHeads: readonly number[],
-  resolve: WikilinksOptions["resolve"]
+  resolve: WikilinksOptions["resolve"],
+  ignore: WikilinksOptions["ignore"]
 ): DecorationSet {
   const matches = scanWikiLinks(doc);
   if (matches.length === 0) return Decoration.none;
 
   const decos: Range<Decoration>[] = [];
   for (const m of matches) {
+    if (ignore?.(m.target)) continue;
     const unresolved = resolve ? !resolve(m.target) : false;
     const style = unresolved ? UNRESOLVED_STYLE : RESOLVED_STYLE;
     const attrs: Record<string, string> = {
@@ -247,6 +251,7 @@ function createAutocompleteSource(
 export function createWikilinksExtension(options: WikilinksOptions = {}): Extension[] {
   const resolve = options.resolve;
   const onNavigate = options.onNavigate;
+  const ignore = options.ignore;
 
   // A small effect to force redecoration when the host announces the index has
   // changed (e.g. a new note was created elsewhere). Hosts do this by
@@ -256,12 +261,12 @@ export function createWikilinksExtension(options: WikilinksOptions = {}): Extens
   const field = StateField.define<DecorationSet>({
     create(state) {
       const heads = state.selection.ranges.map((r) => r.head);
-      return buildWikiLinkDecorations(state.doc.toString(), heads, resolve);
+      return buildWikiLinkDecorations(state.doc.toString(), heads, resolve, ignore);
     },
     update(decos: DecorationSet, tr: Transaction) {
       if (tr.docChanged || tr.selection) {
         const heads = tr.state.selection.ranges.map((r) => r.head);
-        return buildWikiLinkDecorations(tr.state.doc.toString(), heads, resolve);
+        return buildWikiLinkDecorations(tr.state.doc.toString(), heads, resolve, ignore);
       }
       return decos;
     },
@@ -277,6 +282,7 @@ export function createWikilinksExtension(options: WikilinksOptions = {}): Extens
       if (!el) return false;
       const target = el.getAttribute("data-wikilink-target");
       if (!target) return false;
+      if (ignore?.(target)) return false;
       const unresolved = el.getAttribute("data-wikilink-unresolved") === "true";
       event.preventDefault();
       event.stopPropagation();

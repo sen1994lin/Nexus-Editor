@@ -8,6 +8,7 @@ import {
   insertLink,
   toggleHeading,
   createToolbarPlugin,
+  createToolbarUI,
 } from "../src/index";
 
 describe("toggleBold", () => {
@@ -140,6 +141,34 @@ describe("createToolbarPlugin", () => {
     editor.runShortcut("Mod-b");
 
     expect(editor.getDocument()).toBe("hello **world**");
+    editor.destroy();
+  });
+});
+
+describe("createToolbarUI", () => {
+  it("shows custom text tooltip for icon-only toolbar buttons", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({ container, initialValue: "hello world" });
+    const toolbar = createToolbarUI(editor);
+    document.body.appendChild(toolbar.element);
+
+    const button = toolbar.element.querySelector<HTMLButtonElement>('[data-toolbar-action="unordered-list"]');
+    expect(button).not.toBeNull();
+    expect(button?.title).toBe("");
+    expect(button?.getAttribute("aria-label")).toBe("Unordered list");
+    expect(button?.dataset.toolbarTooltip).toBe("Unordered list");
+    expect(button?.getAttribute("aria-describedby")).toMatch(/^nexus-toolbar-tooltip-/);
+
+    button?.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+
+    const tooltip = document.getElementById(button?.getAttribute("aria-describedby") ?? "");
+    expect(tooltip?.getAttribute("role")).toBe("tooltip");
+    expect(tooltip?.textContent).toBe("Unordered list");
+
+    button?.dispatchEvent(new MouseEvent("mouseleave", { bubbles: true }));
+    expect(document.getElementById(button?.getAttribute("aria-describedby") ?? "")).toBeNull();
+
+    toolbar.destroy();
     editor.destroy();
   });
 });

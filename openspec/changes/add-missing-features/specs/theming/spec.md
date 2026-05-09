@@ -2,7 +2,7 @@
 
 ## ADDED Requirements
 
-### The system SHALL provide a theme configuration API
+### Requirement: provide a theme configuration API
 
 A `NexusTheme` interface SHALL define all customizable visual properties (colors, fonts, spacing, border radius). `EditorConfig.theme` SHALL accept a theme object.
 
@@ -18,7 +18,7 @@ A `NexusTheme` interface SHALL define all customizable visual properties (colors
 - **WHEN** editor is created with a custom `NexusTheme` object
 - **THEN** all specified properties SHALL override defaults
 
-### The system SHALL provide built-in light and dark themes
+### Requirement: provide built-in light and dark themes
 
 Two preset themes SHALL be exported: `lightTheme` and `darkTheme`.
 
@@ -35,7 +35,7 @@ Two preset themes SHALL be exported: `lightTheme` and `darkTheme`.
 - **AND** text SHALL be light (#d4d4d4 or similar)
 - **AND** syntax highlighting colors SHALL be adjusted for dark backgrounds
 
-### The system SHALL use CSS custom properties for all visual values
+### Requirement: use CSS custom properties for all visual values
 
 All hardcoded colors, fonts, and spacing SHALL be replaced with CSS custom properties (`--nexus-*`) that the theme system sets on the editor root element.
 
@@ -44,7 +44,7 @@ All hardcoded colors, fonts, and spacing SHALL be replaced with CSS custom prope
 - **THEN** the editor root element SHALL have CSS custom properties for all theme values
 - **AND** all internal styles SHALL reference these properties
 
-### The system SHALL support runtime theme switching
+### Requirement: support runtime theme switching
 
 Themes SHALL be switchable at runtime without destroying and recreating the editor.
 

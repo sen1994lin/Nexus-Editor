@@ -2,7 +2,30 @@
 
 ## ADDED Requirements
 
-### The system SHALL provide a Mermaid diagram plugin
+### Requirement: provide an editor search plugin
+
+The `@floatboat/nexus-plugin-search` package SHALL provide a functional CodeMirror-backed search panel with keyboard shortcuts, match navigation, replacement controls, and stable DOM selectors for host applications.
+
+#### Scenario: Open search panel
+- **WHEN** a host enables `createSearchPlugin()` and the user presses Mod+F
+- **THEN** the editor SHALL open a search panel
+- **AND** the panel SHALL expose stable `data-test-id` attributes for automation
+- **AND** replacement controls SHALL be hidden until the user expands them with a replace toggle
+
+#### Scenario: Toggle replacement controls
+- **GIVEN** the search panel is open in a writable editor
+- **WHEN** the user activates the replace toggle
+- **THEN** the plugin SHALL show the replacement input and replace actions
+- **AND** the toggle SHALL expose its expanded state with `aria-expanded`
+- **WHEN** the user activates the replace toggle again
+- **THEN** the plugin SHALL hide the replacement input and replace actions
+
+#### Scenario: Navigate matches
+- **GIVEN** the search panel is open with a non-empty query
+- **WHEN** the user presses Enter in the search input or activates next/previous
+- **THEN** the editor SHALL move to the corresponding match and highlight visible matches
+
+### Requirement: provide a Mermaid diagram plugin
 
 A `@nexus/plugin-mermaid` package SHALL render `mermaid` code blocks as SVG diagrams when the cursor is outside, and show raw mermaid source when the cursor is inside.
 
@@ -20,7 +43,7 @@ A `@nexus/plugin-mermaid` package SHALL render `mermaid` code blocks as SVG diag
 - **WHEN** the mermaid source has syntax errors
 - **THEN** an error message SHALL be displayed instead of the diagram
 
-### The system SHALL support list item drag reorder
+### Requirement: support list item drag reorder
 
 List items SHALL have grip handles (similar to table rows) that allow drag-and-drop reordering.
 

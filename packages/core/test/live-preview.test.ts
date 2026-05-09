@@ -348,6 +348,47 @@ describe("live preview", () => {
     editor.destroy();
   });
 
+  it("preserves empty table cells when rendering from pipe delimiters", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue: "| A |  | C |\n| --- | --- | --- |\n| 1 |  | 3 |",
+      livePreview: true,
+      plugins: [createGfmPreset()]
+    });
+
+    const rows = Array.from(container.querySelectorAll("tr")).map((row) =>
+      Array.from(row.querySelectorAll(".nexus-cell")).map((cell) => cell.textContent)
+    );
+    expect(rows[1]).toEqual(["A", "", "C"]);
+    expect(rows[2]).toEqual(["1", "", "3"]);
+    editor.destroy();
+  });
+
+  it("adds a right-side column immediately after the table widget mounts", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue: "| A | B |\n| --- | --- |\n| 1 | 2 |",
+      livePreview: true,
+      plugins: [createGfmPreset()]
+    });
+
+    const addColumn = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.title === "Add column"
+    );
+    expect(addColumn).not.toBeUndefined();
+    addColumn?.click();
+
+    const rows = Array.from(container.querySelectorAll("tr")).map((row) =>
+      Array.from(row.querySelectorAll(".nexus-cell")).map((cell) => cell.textContent)
+    );
+    expect(rows[1]).toEqual(["A", "B", ""]);
+    expect(rows[2]).toEqual(["1", "2", ""]);
+    expect(editor.getDocument()).toContain("| A | B");
+    editor.destroy();
+  });
+
   // ── Custom renderers ──
 
   it("allows host renderers to override default node rendering", () => {

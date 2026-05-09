@@ -61,6 +61,62 @@ export interface ToolbarUI {
   destroy(): void;
 }
 
+let tooltipId = 0;
+
+function positionToolbarTooltip(button: HTMLElement, tooltip: HTMLElement): void {
+  const rect = button.getBoundingClientRect();
+  tooltip.style.left = `${rect.left + rect.width / 2}px`;
+  tooltip.style.top = `${rect.bottom + 8}px`;
+}
+
+function installToolbarTooltip(button: HTMLButtonElement): () => void {
+  const tooltip = document.createElement("div");
+  tooltip.className = "nexus-toolbar-tooltip";
+  tooltip.id = `nexus-toolbar-tooltip-${++tooltipId}`;
+  tooltip.setAttribute("role", "tooltip");
+  button.setAttribute("aria-describedby", tooltip.id);
+
+  const show = () => {
+    const label = button.dataset.toolbarTooltip ?? button.getAttribute("aria-label") ?? "";
+    if (!label.trim()) return;
+    tooltip.textContent = label;
+    tooltip.dataset.state = "open";
+    if (!tooltip.isConnected) document.body.appendChild(tooltip);
+    positionToolbarTooltip(button, tooltip);
+  };
+  const hide = () => {
+    tooltip.dataset.state = "closed";
+    tooltip.remove();
+  };
+  const updatePosition = () => {
+    if (tooltip.isConnected) positionToolbarTooltip(button, tooltip);
+  };
+  const handleKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Escape") hide();
+  };
+
+  button.addEventListener("mouseenter", show);
+  button.addEventListener("focus", show);
+  button.addEventListener("mouseleave", hide);
+  button.addEventListener("blur", hide);
+  button.addEventListener("click", hide);
+  button.addEventListener("keydown", handleKeyDown);
+  window.addEventListener("scroll", updatePosition, true);
+  window.addEventListener("resize", updatePosition);
+
+  return () => {
+    button.removeEventListener("mouseenter", show);
+    button.removeEventListener("focus", show);
+    button.removeEventListener("mouseleave", hide);
+    button.removeEventListener("blur", hide);
+    button.removeEventListener("click", hide);
+    button.removeEventListener("keydown", handleKeyDown);
+    window.removeEventListener("scroll", updatePosition, true);
+    window.removeEventListener("resize", updatePosition);
+    hide();
+  };
+}
+
 function defaultGroups(options?: ToolbarUIOptions): ToolbarGroup[] {
   return [
     {
@@ -415,11 +471,13 @@ export function createToolbarUI(editor: EditorAPI, options?: ToolbarUIOptions): 
       const button = document.createElement("button");
       button.className = "nexus-toolbar-btn";
       button.dataset.toolbarAction = btn.id;
-      button.title = btn.title;
+      button.dataset.toolbarTooltip = btn.title;
+      button.setAttribute("aria-label", btn.title);
       button.type = "button";
       button.tabIndex = -1;
       button.style.cssText = BUTTON_STYLES;
       button.appendChild(btn.icon());
+      const cleanupTooltip = installToolbarTooltip(button);
 
       const handleMouseEnter = () => applyHover(button);
       const handleMouseLeave = () => clearHover(button);
@@ -457,6 +515,7 @@ export function createToolbarUI(editor: EditorAPI, options?: ToolbarUIOptions): 
           button.removeEventListener("click", handleClick);
           button.removeEventListener("mouseenter", handleMouseEnter);
           button.removeEventListener("mouseleave", handleMouseLeave);
+          cleanupTooltip();
           closeDropdown();
         });
         toolbar.appendChild(button);
@@ -479,6 +538,7 @@ export function createToolbarUI(editor: EditorAPI, options?: ToolbarUIOptions): 
         button.removeEventListener("click", handleClick);
         button.removeEventListener("mouseenter", handleMouseEnter);
         button.removeEventListener("mouseleave", handleMouseLeave);
+        cleanupTooltip();
       });
 
       toolbar.appendChild(button);
