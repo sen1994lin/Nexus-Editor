@@ -25,6 +25,9 @@ A headless Markdown editor engine built on [CodeMirror 6](https://codemirror.net
 | `@floatboat/nexus-plugin-history` | Undo/redo with `Ctrl+Z` / `Ctrl+Shift+Z` |
 | `@floatboat/nexus-plugin-search` | Search and replace helpers |
 | `@floatboat/nexus-plugin-slash` | Slash command detection and filtering |
+| `@floatboat/nexus-plugin-toolbar` | Toolbar primitives for formatting commands |
+| `@floatboat/nexus-plugin-math` | Inline / block math rendering (KaTeX) |
+| `@floatboat/nexus-plugin-vim` | Vim keybindings powered by `@replit/codemirror-vim` |
 
 ## Quick Start
 
@@ -141,6 +144,18 @@ pnpm test           # run all tests
 # Electron demo
 pnpm dev:electron-demo
 ```
+
+## Roadmap
+
+Planned features are tracked in [docs/ROADMAP.md](./docs/ROADMAP.md) with package ownership, priority, and OpenSpec linkage.
+
+## Contributing
+
+PRs are welcome. Before opening one, please read:
+
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — branch naming, Conventional Commits scope whitelist, when to file an OpenSpec proposal, test matrix.
+- [.github/PULL_REQUEST_TEMPLATE.md](./.github/PULL_REQUEST_TEMPLATE.md) — the PR description template.
+- [openspec/AGENTS.md](./openspec/AGENTS.md) — required for new capabilities or breaking API changes.
 
 ## License
 

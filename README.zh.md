@@ -25,6 +25,9 @@
 | `@floatboat/nexus-plugin-history` | 撤销/重做，支持 `Ctrl+Z` / `Ctrl+Shift+Z` |
 | `@floatboat/nexus-plugin-search` | 搜索替换辅助函数 |
 | `@floatboat/nexus-plugin-slash` | 斜杠命令检测与过滤 |
+| `@floatboat/nexus-plugin-toolbar` | 工具栏基础组件与格式化命令 |
+| `@floatboat/nexus-plugin-math` | 行内 / 块级数学公式渲染（KaTeX） |
+| `@floatboat/nexus-plugin-vim` | Vim 键位（基于 `@replit/codemirror-vim`） |
 
 ## 快速开始
 
@@ -141,6 +144,18 @@ pnpm test           # 运行所有测试
 # Electron 演示应用
 pnpm dev:electron-demo
 ```
+
+## Roadmap
+
+规划中的功能见 [docs/ROADMAP.zh.md](./docs/ROADMAP.zh.md)，按归属包、优先级、状态、是否需要 OpenSpec 分类。
+
+## 贡献指南
+
+欢迎提交 PR。开始之前请阅读：
+
+- [CONTRIBUTING.zh.md](./CONTRIBUTING.zh.md) — 分支命名、Conventional Commits 的 scope 白名单、何时需要走 OpenSpec、测试矩阵。
+- [.github/PULL_REQUEST_TEMPLATE.md](./.github/PULL_REQUEST_TEMPLATE.md) — PR 描述模板（双语）。
+- [openspec/AGENTS.md](./openspec/AGENTS.md) — 新 capability 或破坏性 API 变更必读。
 
 ## 许可证
 
