@@ -314,26 +314,40 @@ function adaptInlineNode(source: Source, node: SyntaxNode): PhrasingContent | nu
       // optional `(URL "title")`. We pull URL via child name.
       const url = findChildByName(node, "URL");
       const urlText = url ? readSlice(source, url.from, url.to) : readSlice(source, node.from, node.to).replace(/^<|>$/g, "");
-      // Children: everything between the first `[` and the matching `]`,
-      // exclusive of marks. For autolinks/URLs the node IS the link text.
+      // Walk children between the first `[` and the matching `]` and
+      // recursively adapt nested inline nodes (Image, StrongEmphasis,
+      // Emphasis, InlineCode, etc.) so things like
+      // `[![logo](imgUrl)](pageUrl)` keep their nested Image, and
+      // `[**bold link**](url)` keeps its Strong wrapper. The previous
+      // implementation emitted the label as a single flat Text node,
+      // which dropped every nested mdast node.
       const labelChildren: PhrasingContent[] = (() => {
-        // Find the inner span between the LinkMark `[` and `]`
-        const first = node.firstChild;
-        if (!first || first.name !== "LinkMark") {
-          // autolink: no marks, the whole node is the label
-          return [emitText(source, node.from, node.to)];
-        }
-        const labelFrom = first.to;
-        // Find the matching `]` LinkMark — it's the second LinkMark child.
-        let labelTo = node.to;
+        let labelStartMark: SyntaxNode | null = null;
+        let labelEndMark: SyntaxNode | null = null;
         let seen = 0;
         for (let c = node.firstChild; c; c = c.nextSibling) {
-          if (c.name === "LinkMark") {
-            seen++;
-            if (seen === 2) { labelTo = c.from; break; }
-          }
+          if (c.name !== "LinkMark") continue;
+          seen++;
+          if (seen === 1) labelStartMark = c;
+          else if (seen === 2) { labelEndMark = c; break; }
         }
-        return [emitText(source, labelFrom, labelTo)];
+        if (!labelStartMark || !labelEndMark) {
+          // Autolink / bare URL — no `[]`, the whole node is the label.
+          return [emitText(source, node.from, node.to)];
+        }
+        const labelFrom = labelStartMark.to;
+        const labelEnd = labelEndMark.from;
+        const out: PhrasingContent[] = [];
+        let cursor = labelFrom;
+        for (let c = labelStartMark.nextSibling; c && c !== labelEndMark; c = c.nextSibling) {
+          if (c.from >= labelEnd) break;
+          if (c.from > cursor) out.push(emitText(source, cursor, c.from));
+          const adapted = adaptInlineNode(source, c);
+          if (adapted) out.push(adapted);
+          cursor = c.to;
+        }
+        if (cursor < labelEnd) out.push(emitText(source, cursor, labelEnd));
+        return out;
       })();
       const out: Link = {
         type: "link",

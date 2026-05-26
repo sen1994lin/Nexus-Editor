@@ -367,6 +367,63 @@ describe("live preview", () => {
     editor.destroy();
   });
 
+  it("scales image to cell width when the cell is media-only (single image / image-in-link)", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue:
+        "| Avatar | Mixed |\n|---|---|\n| ![alice](https://example.com/a.png) | text ![icon](https://example.com/i.png) more |\n| [![logo](https://example.com/l.png)](https://x.example) | ok |",
+      livePreview: true,
+      plugins: [createGfmPreset()],
+    });
+
+    const imgs = Array.from(container.querySelectorAll<HTMLImageElement>("table img"));
+    expect(imgs.length).toBe(3);
+
+    // First row, first column: media-only standalone image — width:100%
+    // so it grows with the column.
+    const mediaOnlyStandalone = imgs.find((i) => i.getAttribute("src") === "https://example.com/a.png");
+    expect(mediaOnlyStandalone?.style.width).toBe("100%");
+    expect(mediaOnlyStandalone?.style.maxHeight).toBe("240px");
+
+    // First row, second column: inline image alongside text — stays
+    // small (capped at the existing 1.6em line-height + 160px width).
+    const inlineImg = imgs.find((i) => i.getAttribute("src") === "https://example.com/i.png");
+    expect(inlineImg?.style.maxHeight).toBe("1.6em");
+    expect(inlineImg?.style.maxWidth).toBe("160px");
+
+    // Second row, first column: image-in-link is also media-only.
+    const linkWrapped = imgs.find((i) => i.getAttribute("src") === "https://example.com/l.png");
+    expect(linkWrapped?.style.width).toBe("100%");
+    // Anchor parent should switch to block so the image fills the cell
+    // without inline-baseline whitespace eating space.
+    const linkParent = linkWrapped?.closest("a") as HTMLElement | null;
+    expect(linkParent?.style.display).toBe("block");
+    editor.destroy();
+  });
+
+  it("renders inline images inside table cells, including image-wrapped-in-link", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue:
+        "| Avatar | Linked |\n|---|---|\n| ![alice](https://example.com/a.png) | [![logo](https://example.com/l.png)](https://carol.example) |",
+      livePreview: true,
+      plugins: [createGfmPreset()],
+    });
+
+    const imgs = container.querySelectorAll<HTMLImageElement>("table img");
+    expect(imgs.length).toBe(2);
+    expect(imgs[0].getAttribute("src")).toBe("https://example.com/a.png");
+    expect(imgs[0].getAttribute("alt")).toBe("alice");
+    expect(imgs[1].getAttribute("src")).toBe("https://example.com/l.png");
+    // The second image is wrapped in a Link → has an <a> ancestor with the
+    // outer URL as href.
+    const linkAncestor = imgs[1].closest("a");
+    expect(linkAncestor?.getAttribute("href")).toBe("https://carol.example");
+    editor.destroy();
+  });
+
   it("renders inline bold/em/code inside table cells", () => {
     const container = document.createElement("div");
     const editor = createEditor({
@@ -380,6 +437,61 @@ describe("live preview", () => {
     expect(container.querySelector("table strong")?.textContent).toBe("strong");
     expect(container.querySelector("table em")?.textContent).toBe("em");
     expect(container.querySelector("table code")?.textContent).toBe("code");
+    editor.destroy();
+  });
+
+  it("renders a column-resize handle on every header cell", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue: "| A | B | C |\n|---|---|---|\n| 1 | 2 | 3 |",
+      livePreview: true,
+      plugins: [createGfmPreset()],
+    });
+
+    // One resize handle per data column (3 here). They live inside the
+    // header <th>s so the user can grab the boundary between columns.
+    const handles = container.querySelectorAll(".nexus-col-resize");
+    expect(handles.length).toBe(3);
+    // Each handle should be positioned for col-resize.
+    handles.forEach((h) => {
+      const style = (h as HTMLElement).style;
+      expect(style.cursor).toBe("col-resize");
+    });
+    editor.destroy();
+  });
+
+  it("dragging the resize handle pins column widths via colgroup", () => {
+    const container = document.createElement("div");
+    const editor = createEditor({
+      container,
+      initialValue: "| A | B |\n|---|---|\n| 1 | 2 |",
+      livePreview: true,
+      plugins: [createGfmPreset()],
+    });
+
+    const handle = container.querySelector(".nexus-col-resize") as HTMLElement | null;
+    expect(handle).not.toBeNull();
+
+    // Simulate a drag: mousedown on handle, mousemove on document,
+    // mouseup to commit. The DOM should pick up a <colgroup> + the
+    // table should switch to fixed layout afterwards.
+    const startX = 200;
+    handle?.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true, cancelable: true, button: 0, clientX: startX,
+    }));
+    document.dispatchEvent(new MouseEvent("mousemove", {
+      bubbles: true, clientX: startX + 60,
+    }));
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+
+    const table = container.querySelector("table") as HTMLTableElement | null;
+    expect(table).not.toBeNull();
+    expect(table?.style.tableLayout).toBe("fixed");
+    const colgroup = table?.querySelector("colgroup");
+    expect(colgroup).not.toBeNull();
+    // colgroup should have one <col> per column including the row-grip.
+    expect(colgroup?.children.length).toBeGreaterThanOrEqual(2);
     editor.destroy();
   });
 
