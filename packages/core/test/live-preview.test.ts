@@ -171,6 +171,38 @@ describe("live preview", () => {
     editor.destroy();
   });
 
+  it("shows raw markdown so links can be edited when the cursor enters the link range", () => {
+    const container = document.createElement("div");
+    const source = "Click [here](https://example.com) now\n\nend";
+    const editor = createEditor({
+      container,
+      initialValue: source,
+      livePreview: true
+    });
+
+    editor.setSelection(source.indexOf(") now") + 1);
+
+    expect(container.textContent).toContain("[here](https://example.com)");
+    expect(container.querySelector("[data-link-url]")).toBeNull();
+    editor.destroy();
+  });
+
+  it("shows raw markdown for ordered-list links when the cursor reaches their right edge", () => {
+    const container = document.createElement("div");
+    const source = "1. [标题层级](#标题层级)\n2. [段落与换行](#段落与换行)\n\nend";
+    const editor = createEditor({
+      container,
+      initialValue: source,
+      livePreview: true
+    });
+
+    editor.setSelection(source.indexOf("\n2."));
+
+    expect(container.textContent).toContain("[标题层级](#标题层级)");
+    expect(container.querySelector("[data-link-url]")?.textContent).toBe("段落与换行");
+    editor.destroy();
+  });
+
   // ── Headings ──
 
   it("renders headings with bold text and heading level attribute", () => {
@@ -371,6 +403,52 @@ describe("live preview", () => {
     }));
 
     expect(cell?.contentEditable).toBe("true");
+    editor.destroy();
+    container.remove();
+  });
+
+  it("preserves clicked caret position when a styled table cell swaps to raw markdown", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const editor = createEditor({
+      container,
+      initialValue: "| A | B |\n| --- | --- |\n| 1 | **加粗** |",
+      livePreview: true,
+      plugins: [createGfmPreset()]
+    });
+
+    const cell = container.querySelectorAll<HTMLElement>("tr")[2]?.querySelectorAll<HTMLElement>(".nexus-cell")[1];
+    const textNode = cell?.querySelector("strong")?.firstChild;
+    expect(cell).not.toBeUndefined();
+    expect(textNode?.textContent).toBe("加粗");
+
+    const originalCaretRangeFromPoint = document.caretRangeFromPoint;
+    const range = document.createRange();
+    range.setStart(textNode!, 1);
+    range.collapse(true);
+    Object.defineProperty(document, "caretRangeFromPoint", {
+      configurable: true,
+      value: () => range,
+    });
+
+    cell?.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      clientX: 80,
+      clientY: 40
+    }));
+
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+
+    expect(cell?.textContent).toBe("**加粗**");
+    expect(document.getSelection()?.anchorNode).toBe(cell?.firstChild);
+    expect(document.getSelection()?.anchorOffset).toBe(3);
+
+    Object.defineProperty(document, "caretRangeFromPoint", {
+      configurable: true,
+      value: originalCaretRangeFromPoint,
+    });
     editor.destroy();
     container.remove();
   });

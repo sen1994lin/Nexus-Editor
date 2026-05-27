@@ -1089,7 +1089,12 @@ function buildDecorations(
       const inlineStyle = getInlineMarkerStyle("link", range.source);
       if (inlineStyle) {
         const { openLen, closeLen, style, attrs } = inlineStyle;
-        // Always render as widget — no cursor-on/off switching (avoids viewport instability)
+        const cursorOnLink = selectionIntersects(range.from, range.to, selection, true);
+        // When the caret reaches the link source range (for example by
+        // pressing ArrowLeft from the right edge), show the raw markdown so
+        // users can edit `[text](url)`. Outside the caret range we keep the
+        // compact link widget for preview / click navigation.
+        if (cursorOnLink) continue;
         const linkText = range.source.slice(openLen, range.source.length - closeLen);
         const span = document.createElement("span");
         span.textContent = linkText;

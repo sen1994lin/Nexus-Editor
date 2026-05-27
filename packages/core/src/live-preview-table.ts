@@ -21,6 +21,86 @@ const tableColumnWidths = new Map<string, number[]>();
 
 const ROW_GRIP_WIDTH = 16;
 const MIN_COLUMN_WIDTH = 48;
+const renderedSourceOffsets = new WeakMap<Node, { start: number; end: number }>();
+
+function getNodeSourceOffsets(node: any, tableFrom: number, rawSourceStart: number, inlineCode = false): { start: number; end: number } | null {
+  const startOffset = node?.position?.start?.offset;
+  const endOffset = node?.position?.end?.offset;
+  if (typeof startOffset !== "number" || typeof endOffset !== "number") return null;
+  const markerOffset = inlineCode ? 1 : 0;
+  return {
+    start: startOffset - tableFrom - rawSourceStart + markerOffset,
+    end: endOffset - tableFrom - rawSourceStart - markerOffset,
+  };
+}
+
+function findFirstMappedSourceOffset(node: Node): number | null {
+  const own = renderedSourceOffsets.get(node);
+  if (own) return own.start;
+  for (const child of Array.from(node.childNodes)) {
+    const mapped = findFirstMappedSourceOffset(child);
+    if (mapped !== null) return mapped;
+  }
+  return null;
+}
+
+function findLastMappedSourceOffset(node: Node): number | null {
+  const own = renderedSourceOffsets.get(node);
+  if (own) return own.end;
+  const children = Array.from(node.childNodes);
+  for (let i = children.length - 1; i >= 0; i--) {
+    const mapped = findLastMappedSourceOffset(children[i]);
+    if (mapped !== null) return mapped;
+  }
+  return null;
+}
+
+function rawSourceOffsetFromCaret(container: Node, offset: number): number | null {
+  const own = renderedSourceOffsets.get(container);
+  if (own) return Math.max(own.start, Math.min(own.start + offset, own.end));
+  const children = Array.from(container.childNodes);
+  if (offset > 0) {
+    const previous = children[offset - 1];
+    if (previous) {
+      const mapped = findLastMappedSourceOffset(previous);
+      if (mapped !== null) return mapped;
+    }
+  }
+  const next = children[offset];
+  if (next) {
+    const mapped = findFirstMappedSourceOffset(next);
+    if (mapped !== null) return mapped;
+  }
+  return null;
+}
+
+function rawSourceOffsetFromPoint(td: HTMLElement, event: MouseEvent): number | null {
+  const doc = td.ownerDocument as Document & {
+    caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  };
+  const position = doc.caretPositionFromPoint?.(event.clientX, event.clientY);
+  if (position && td.contains(position.offsetNode)) {
+    return rawSourceOffsetFromCaret(position.offsetNode, position.offset);
+  }
+  const range = doc.caretRangeFromPoint?.(event.clientX, event.clientY);
+  if (range && td.contains(range.startContainer)) {
+    return rawSourceOffsetFromCaret(range.startContainer, range.startOffset);
+  }
+  return null;
+}
+
+function placeRawSourceCaret(td: HTMLElement, rawOffset: number): void {
+  const text = td.firstChild;
+  if (!text || text.nodeType !== Node.TEXT_NODE) return;
+  const offset = Math.max(0, Math.min(rawOffset, text.textContent?.length ?? 0));
+  const range = td.ownerDocument.createRange();
+  range.setStart(text, offset);
+  range.collapse(true);
+  const selection = td.ownerDocument.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
 
 function extractCellText(cell: any): string {
   if (!cell || !("children" in cell) || !Array.isArray(cell.children)) return "";
@@ -67,11 +147,15 @@ function isCellMediaOnly(astCell: any): boolean {
   return false;
 }
 
-function renderInlineMdast(node: any, mediaOnly = false): Node {
+function renderInlineMdast(node: any, mediaOnly = false, tableFrom = 0, rawSourceStart = 0): Node {
   if (!node) return document.createTextNode("");
   switch (node.type) {
-    case "text":
-      return document.createTextNode(typeof node.value === "string" ? node.value : "");
+    case "text": {
+      const text = document.createTextNode(typeof node.value === "string" ? node.value : "");
+      const sourceOffsets = getNodeSourceOffsets(node, tableFrom, rawSourceStart);
+      if (sourceOffsets) renderedSourceOffsets.set(text, sourceOffsets);
+      return text;
+    }
     case "link": {
       const a = document.createElement("a");
       a.href = typeof node.url === "string" ? node.url : "#";
@@ -89,27 +173,30 @@ function renderInlineMdast(node: any, mediaOnly = false): Node {
         a.style.display = "block";
         a.style.lineHeight = "0";
       }
-      for (const child of node.children ?? []) a.appendChild(renderInlineMdast(child, mediaOnly));
+      for (const child of node.children ?? []) a.appendChild(renderInlineMdast(child, mediaOnly, tableFrom, rawSourceStart));
       return a;
     }
     case "strong": {
       const el = document.createElement("strong");
-      for (const child of node.children ?? []) el.appendChild(renderInlineMdast(child));
+      for (const child of node.children ?? []) el.appendChild(renderInlineMdast(child, false, tableFrom, rawSourceStart));
       return el;
     }
     case "emphasis": {
       const el = document.createElement("em");
-      for (const child of node.children ?? []) el.appendChild(renderInlineMdast(child));
+      for (const child of node.children ?? []) el.appendChild(renderInlineMdast(child, false, tableFrom, rawSourceStart));
       return el;
     }
     case "delete": {
       const el = document.createElement("del");
-      for (const child of node.children ?? []) el.appendChild(renderInlineMdast(child));
+      for (const child of node.children ?? []) el.appendChild(renderInlineMdast(child, false, tableFrom, rawSourceStart));
       return el;
     }
     case "inlineCode": {
       const el = document.createElement("code");
-      el.textContent = typeof node.value === "string" ? node.value : "";
+      const text = document.createTextNode(typeof node.value === "string" ? node.value : "");
+      const sourceOffsets = getNodeSourceOffsets(node, tableFrom, rawSourceStart, true);
+      if (sourceOffsets) renderedSourceOffsets.set(text, sourceOffsets);
+      el.appendChild(text);
       el.style.cssText =
         "background:var(--nexus-bg-muted);padding:1px 4px;border-radius:3px;font-family:monospace;";
       return el;
@@ -159,19 +246,22 @@ function renderInlineMdast(node: any, mediaOnly = false): Node {
     default: {
       if (Array.isArray(node.children)) {
         const frag = document.createDocumentFragment();
-        for (const child of node.children) frag.appendChild(renderInlineMdast(child));
+        for (const child of node.children) frag.appendChild(renderInlineMdast(child, false, tableFrom, rawSourceStart));
         return frag;
       }
-      return document.createTextNode(typeof node.value === "string" ? node.value : "");
+      const text = document.createTextNode(typeof node.value === "string" ? node.value : "");
+      const sourceOffsets = getNodeSourceOffsets(node, tableFrom, rawSourceStart);
+      if (sourceOffsets) renderedSourceOffsets.set(text, sourceOffsets);
+      return text;
     }
   }
 }
 
-function renderCellRich(td: HTMLElement, astCell: any): void {
+function renderCellRich(td: HTMLElement, astCell: any, tableFrom = 0, rawSourceStart = 0): void {
   td.textContent = "";
   if (!astCell || !Array.isArray(astCell.children)) return;
   const mediaOnly = isCellMediaOnly(astCell);
-  for (const child of astCell.children) td.appendChild(renderInlineMdast(child, mediaOnly));
+  for (const child of astCell.children) td.appendChild(renderInlineMdast(child, mediaOnly, tableFrom, rawSourceStart));
 }
 
 const GRIP_BG = "var(--nexus-bg-muted)";
@@ -923,18 +1013,22 @@ export class EditableTableWidget extends WidgetType {
         // Without this, `extractCellText` flattens `[X](url)` to `X` and the
         // source-line dispatch in the input handler would clobber the link.
         let rawSource = "";
+        let rawSourceStart = 0;
         const startOffset = astCell?.position?.start?.offset;
         const endOffset = astCell?.position?.end?.offset;
         if (typeof startOffset === "number" && typeof endOffset === "number") {
           const sliceStart = startOffset - self.tableFrom;
           const sliceEnd = endOffset - self.tableFrom;
           if (sliceStart >= 0 && sliceEnd >= sliceStart && sliceEnd <= self.source.length) {
-            rawSource = self.source.slice(sliceStart, sliceEnd).trim();
+            const rawSlice = self.source.slice(sliceStart, sliceEnd);
+            const leadingWhitespace = rawSlice.match(/^\s*/)?.[0].length ?? 0;
+            rawSource = rawSlice.trim();
+            rawSourceStart = sliceStart + leadingWhitespace;
           }
         }
         td.dataset.source = rawSource;
         if (astCell && Array.isArray(astCell.children) && astCell.children.length > 0) {
-          renderCellRich(td, astCell);
+          renderCellRich(td, astCell, self.tableFrom, rawSourceStart);
         } else {
           td.textContent = rawSource;
         }
@@ -986,6 +1080,29 @@ export class EditableTableWidget extends WidgetType {
         const cellCol = colIdx;
         let cellMouseMoved = false;
 
+        const enterRawEditingMode = (): void => {
+          // Pin THIS cell to its currently rendered width before swapping
+          // to raw markdown. The column width in table-layout:auto is
+          // `max(cellWidth_i)` over all cells in the column — so if one
+          // cell tries to widen, the whole column expands and every
+          // other cell in it visibly shifts. Capping the focused cell at
+          // its existing width prevents it from being the new max →
+          // column stays put → no sideways jump as the user clicks
+          // between rows.
+          const renderedWidth = td.getBoundingClientRect().width;
+          if (renderedWidth > 0) {
+            td.style.maxWidth = renderedWidth + "px";
+            td.style.width = renderedWidth + "px";
+          }
+          // Inside the capped cell, let long URLs wrap (the rendered
+          // text was usually shorter than the raw markdown).
+          td.style.wordBreak = "break-all";
+          td.style.whiteSpace = "pre-wrap";
+          // Swap rendered rich DOM for the raw markdown source so the user
+          // edits the actual `[text](url)` text instead of just "text".
+          td.textContent = td.dataset.source ?? "";
+        };
+
         const activateCellEditing = (): void => {
           if (td.contentEditable !== "true") {
             td.contentEditable = "true";
@@ -993,11 +1110,13 @@ export class EditableTableWidget extends WidgetType {
           if (td.ownerDocument.activeElement !== td) {
             td.focus({ preventScroll: true });
           }
+          enterRawEditingMode();
         };
 
         td.addEventListener("mousedown", (e) => {
           if (e.button !== 0) return; // only left button
           e.stopPropagation();
+          const rawCaretOffset = rawSourceOffsetFromPoint(td, e);
           cellMouseMoved = false;
           clearSelection();
 
@@ -1011,6 +1130,14 @@ export class EditableTableWidget extends WidgetType {
           // mouseup/focus makes contentEditable place the caret at the
           // start of the cell instead of at the pointer location.
           activateCellEditing();
+          if (rawCaretOffset !== null) {
+            placeRawSourceCaret(td, rawCaretOffset);
+            window.setTimeout(() => {
+              if (td.contentEditable === "true") {
+                placeRawSourceCaret(td, rawCaretOffset);
+              }
+            }, 0);
+          }
 
           const onCellMouseMove = (me: MouseEvent): void => {
             const target = cellAtPoint(me.clientX, me.clientY);
@@ -1047,26 +1174,7 @@ export class EditableTableWidget extends WidgetType {
         td.addEventListener("focus", () => {
           acquireEditingLock("focus");
           clearRangeSelection();
-          // Pin THIS cell to its currently rendered width before swapping
-          // to raw markdown. The column width in table-layout:auto is
-          // `max(cellWidth_i)` over all cells in the column — so if one
-          // cell tries to widen, the whole column expands and every
-          // other cell in it visibly shifts. Capping the focused cell at
-          // its existing width prevents it from being the new max →
-          // column stays put → no sideways jump as the user clicks
-          // between rows.
-          const renderedWidth = td.getBoundingClientRect().width;
-          if (renderedWidth > 0) {
-            td.style.maxWidth = renderedWidth + "px";
-            td.style.width = renderedWidth + "px";
-          }
-          // Inside the capped cell, let long URLs wrap (the rendered
-          // text was usually shorter than the raw markdown).
-          td.style.wordBreak = "break-all";
-          td.style.whiteSpace = "pre-wrap";
-          // Swap rendered rich DOM for the raw markdown source so the user
-          // edits the actual `[text](url)` text instead of just "text".
-          td.textContent = td.dataset.source ?? "";
+          enterRawEditingMode();
         });
         td.addEventListener("blur", () => {
           releaseEditingLock("focus");
@@ -1095,7 +1203,7 @@ export class EditableTableWidget extends WidgetType {
           //    another swallowing widget, no transaction fires, and the
           //    cell stays in raw-source mode.
           if (astCell && Array.isArray(astCell.children) && astCell.children.length > 0) {
-            renderCellRich(td, astCell);
+            renderCellRich(td, astCell, self.tableFrom, rawSourceStart);
           } else {
             td.textContent = td.dataset.source ?? "";
           }
