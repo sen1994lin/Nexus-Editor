@@ -272,6 +272,7 @@ const DRAG_HIGHLIGHT_BG = "rgba(124, 108, 250, 0.08)";
 
 export class EditableTableWidget extends WidgetType {
   private editing = false;
+  private cleanupEditingLocks: (() => void) | null = null;
 
   constructor(
     private node: Table,
@@ -287,6 +288,11 @@ export class EditableTableWidget extends WidgetType {
   }
 
   ignoreEvent(): boolean { return true; }
+
+  destroy(): void {
+    this.cleanupEditingLocks?.();
+    this.cleanupEditingLocks = null;
+  }
 
   get estimatedHeight(): number {
     const rows = this.node.children?.length ?? 1;
@@ -414,6 +420,12 @@ export class EditableTableWidget extends WidgetType {
       tableEditingCount = Math.max(0, tableEditingCount - 1);
       self.editing = hasEditingLocks();
     }
+
+    this.cleanupEditingLocks = () => {
+      releaseEditingLock("focus");
+      releaseEditingLock("range");
+      releaseEditingLock("drag");
+    };
 
     function blurActiveCellForDrag(): void {
       const active = document.activeElement;
