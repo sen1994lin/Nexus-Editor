@@ -348,6 +348,33 @@ describe("live preview", () => {
     editor.destroy();
   });
 
+  it("enables table cell editing during mousedown so native caret placement uses the click point", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const editor = createEditor({
+      container,
+      initialValue: "| A | B |\n| --- | --- |\n| 1 | 222 |",
+      livePreview: true,
+      plugins: [createGfmPreset()]
+    });
+
+    const cell = container.querySelectorAll<HTMLElement>("tr")[2]?.querySelectorAll<HTMLElement>(".nexus-cell")[1];
+    expect(cell).not.toBeUndefined();
+    expect(cell?.contentEditable).not.toBe("true");
+
+    cell?.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      clientX: 80,
+      clientY: 40
+    }));
+
+    expect(cell?.contentEditable).toBe("true");
+    editor.destroy();
+    container.remove();
+  });
+
   it("renders inline markdown links inside table cells as <a> elements", () => {
     const container = document.createElement("div");
     const editor = createEditor({

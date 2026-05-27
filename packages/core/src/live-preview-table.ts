@@ -986,6 +986,15 @@ export class EditableTableWidget extends WidgetType {
         const cellCol = colIdx;
         let cellMouseMoved = false;
 
+        const activateCellEditing = (): void => {
+          if (td.contentEditable !== "true") {
+            td.contentEditable = "true";
+          }
+          if (td.ownerDocument.activeElement !== td) {
+            td.focus({ preventScroll: true });
+          }
+        };
+
         td.addEventListener("mousedown", (e) => {
           if (e.button !== 0) return; // only left button
           e.stopPropagation();
@@ -997,6 +1006,11 @@ export class EditableTableWidget extends WidgetType {
           cellMouseDown = true;
           rangeStart = { row: cellRow, col: cellCol };
           rangeEnd = { row: cellRow, col: cellCol };
+          // Enable editing during the browser's native mousedown flow so
+          // the caret lands where the user clicked. Activating only after
+          // mouseup/focus makes contentEditable place the caret at the
+          // start of the cell instead of at the pointer location.
+          activateCellEditing();
 
           const onCellMouseMove = (me: MouseEvent): void => {
             const target = cellAtPoint(me.clientX, me.clientY);
@@ -1017,8 +1031,7 @@ export class EditableTableWidget extends WidgetType {
             if (!cellMouseMoved || (range && range.r1 === range.r2 && range.c1 === range.c2)) {
               // Single cell click — activate editing
               clearRangeSelection();
-              td.contentEditable = "true";
-              requestAnimationFrame(() => td.focus({ preventScroll: true }));
+              activateCellEditing();
             } else {
               // Multi-cell range selected — keep range visible, focus wrapper for key events
               rangeActive = true;
