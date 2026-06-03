@@ -1181,6 +1181,61 @@ describe("live preview", () => {
     editor.destroy();
   });
 
+  it("renders HTML comment blocks as visible muted text instead of collapsing to nothing", () => {
+    const container = document.createElement("div");
+    // An HTML comment fed to innerHTML parses into an invisible DOM comment
+    // node, so the live-preview widget would render empty and the whole block
+    // would vanish. It must instead show the comment as visible text.
+    const comment = "<!-- This note should stay visible -->";
+    const editor = createEditor({
+      container,
+      initialValue: `Intro\n\n${comment}\n\nend`,
+      livePreview: true,
+    });
+
+    editor.setSelection(editor.getDocument().length);
+    const commentEl = container.querySelector(".nexus-html-comment");
+    expect(commentEl).not.toBeNull();
+    expect(commentEl?.textContent).toContain("This note should stay visible");
+    editor.destroy();
+  });
+
+  it("keeps multi-line HTML comment blocks visible (user.md template scenario)", () => {
+    const container = document.createElement("div");
+    const comment = "<!--\nWrite about yourself.\nDelete this section.\n-->";
+    const editor = createEditor({
+      container,
+      initialValue: `# Title\n\n${comment}\n\nend`,
+      livePreview: true,
+    });
+
+    editor.setSelection(editor.getDocument().length);
+    const commentEl = container.querySelector(".nexus-html-comment");
+    expect(commentEl).not.toBeNull();
+    expect(commentEl?.textContent).toContain("Write about yourself.");
+    expect(commentEl?.textContent).toContain("Delete this section.");
+    editor.destroy();
+  });
+
+  it("falls back to raw source when cursor enters an HTML comment block", () => {
+    const container = document.createElement("div");
+    const comment = "<!-- editable note -->";
+    const editor = createEditor({
+      container,
+      initialValue: `Intro\n\n${comment}\n\nend`,
+      livePreview: true,
+    });
+
+    editor.setSelection(0);
+    expect(container.querySelector(".nexus-html-comment")).not.toBeNull();
+
+    const commentOffset = editor.getDocument().indexOf("<!--");
+    editor.setSelection(commentOffset + 3);
+    expect(container.querySelector(".nexus-html-comment")).toBeNull();
+    expect(container.textContent).toContain("<!-- editable note -->");
+    editor.destroy();
+  });
+
   // ── GFM Alerts / Callouts ──
 
   it("renders GFM alert blockquotes (> [!NOTE]) with a styled badge", () => {

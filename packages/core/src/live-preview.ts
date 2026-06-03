@@ -577,6 +577,15 @@ function buildListDecorations(
   }
 }
 
+/**
+ * True when the HTML block is purely an HTML comment (`<!-- … -->`), possibly
+ * with surrounding whitespace. Such blocks have no rendered output, so they
+ * must be shown as visible text rather than injected via innerHTML.
+ */
+function isHtmlComment(raw: string): boolean {
+  return /^\s*<!--[\s\S]*-->\s*$/.test(raw);
+}
+
 // Tags that an embedded HTML block can safely render via innerHTML. We
 // strip `<script>`, `<iframe>`, `<object>`, `<embed>`, on*=… handler
 // attributes, and javascript: URLs to keep authored Markdown from
@@ -630,10 +639,24 @@ function buildHtmlDecorations(
     }
   }
   if (!inner) {
-    inner = document.createElement("div");
-    inner.className = "nexus-html-block-content";
-    inner.style.cssText = "display:block;margin:0;padding:0;line-height:normal;font-family:inherit;";
-    inner.innerHTML = defaultSanitizeHtml(range.node.value ?? range.source);
+    const raw = range.node.value ?? range.source;
+    if (isHtmlComment(raw)) {
+      // An HTML comment injected via innerHTML parses into an invisible DOM
+      // comment node, so the widget renders empty and the whole block
+      // disappears in live preview — only re-appearing when the text is
+      // selected. Render it as visible muted text instead so authoring
+      // comments (e.g. the user.md profile template) stay readable.
+      inner = document.createElement("div");
+      inner.className = "nexus-html-comment";
+      inner.style.cssText =
+        "display:block;margin:0;padding:0;line-height:normal;font-family:inherit;white-space:pre-wrap;color:var(--nexus-hl-comment);";
+      inner.textContent = raw;
+    } else {
+      inner = document.createElement("div");
+      inner.className = "nexus-html-block-content";
+      inner.style.cssText = "display:block;margin:0;padding:0;line-height:normal;font-family:inherit;";
+      inner.innerHTML = defaultSanitizeHtml(raw);
+    }
   }
 
   // Click anywhere on the rendered HTML to enter edit mode — except on
