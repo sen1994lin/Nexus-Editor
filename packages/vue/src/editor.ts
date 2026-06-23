@@ -1,4 +1,4 @@
-import { defineComponent, h, type PropType } from "vue";
+import { computed, defineComponent, h, type PropType } from "vue";
 
 import { useEditor } from "./use-editor";
 
@@ -43,6 +43,10 @@ export const Editor = defineComponent({
   name: "NexusEditor",
   inheritAttrs: false,
   props: {
+    modelValue: {
+      type: String,
+      required: false
+    },
     initialValue: {
       type: String,
       required: false
@@ -112,8 +116,28 @@ export const Editor = defineComponent({
       required: false
     }
   },
-  setup(props, { attrs }) {
-    const { containerRef } = useEditor(pickEditorConfig(props as EditorProps));
+  emits: {
+    "update:modelValue": (_value: string) => true
+  },
+  setup(props, { emit, attrs }) {
+    const editorConfig = computed<UseEditorConfig>(() => {
+      const config = pickEditorConfig(props as EditorProps);
+      const { modelValue } = props;
+      const userOnChange = config.onChange;
+
+      return {
+        ...config,
+        modelValue,
+        onChange: (doc, ast) => {
+          if (modelValue !== undefined) {
+            emit("update:modelValue", doc);
+          }
+          userOnChange?.(doc, ast);
+        }
+      };
+    });
+
+    const { containerRef } = useEditor(editorConfig);
 
     return () => h("div", { ref: containerRef, ...attrs });
   }

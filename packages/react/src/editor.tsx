@@ -3,6 +3,7 @@ import { useEditor } from "./use-editor";
 import type { EditorProps } from "./types";
 
 export function Editor({
+  value,
   initialValue,
   parser,
   parseDelayMs,
@@ -23,6 +24,7 @@ export function Editor({
   ...divProps
 }: EditorProps) {
   const { containerRef } = useEditor({
+    value,
     initialValue,
     parser,
     parseDelayMs,
